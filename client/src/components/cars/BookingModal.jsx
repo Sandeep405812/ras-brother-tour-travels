@@ -29,6 +29,7 @@ import {
   Copy,
   Image as ImageIcon,
 } from 'lucide-react';
+import { uploadSingleFile } from '../../utils/imageUpload';
 
 export default function BookingModal({
   car,
@@ -143,25 +144,18 @@ export default function BookingModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
     setUploadingScreenshot(true);
 
     try {
-      const res = await fetch('/api/upload/single', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success && data.url) {
-        setPaymentScreenshot(data.url);
-        showToast('Payment screenshot uploaded successfully!', 'success');
+      const result = await uploadSingleFile(file, token);
+      if (result && result.url) {
+        setPaymentScreenshot(result.url);
+        showToast('Payment screenshot attached successfully!', 'success');
       } else {
-        showToast(data.message || 'Upload failed', 'error');
+        showToast('Screenshot upload failed. Please try again.', 'error');
       }
     } catch (err) {
-      showToast('Upload error: ' + err.message, 'error');
+      showToast('Upload error: ' + (err.message || 'Failed to upload screenshot'), 'error');
     } finally {
       setUploadingScreenshot(false);
     }

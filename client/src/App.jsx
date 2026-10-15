@@ -36,7 +36,7 @@ function FloatingFleetCartButton() {
   return (
     <button
       onClick={() => setIsCartOpen(true)}
-      className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 px-5 py-3.5 rounded-2xl shadow-2xl font-black text-xs flex items-center gap-2.5 border-2 border-amber-300 transition-transform transform hover:scale-105 active:scale-95"
+      className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-40 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 text-slate-950 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-2xl font-black text-xs flex items-center gap-2 border-2 border-amber-300 transition-transform transform hover:scale-105 active:scale-95"
     >
       <span className="relative">
         <ShoppingCart className="w-4 h-4 text-slate-950" />
@@ -44,7 +44,8 @@ function FloatingFleetCartButton() {
           {cartCount}
         </span>
       </span>
-      <span>Wedding Fleet ({cartCount} Cars Selected)</span>
+      <span className="hidden sm:inline">Wedding Fleet ({cartCount} Cars Selected)</span>
+      <span className="sm:hidden">Fleet ({cartCount})</span>
     </button>
   );
 }

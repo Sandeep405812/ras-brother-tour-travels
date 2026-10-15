@@ -24,6 +24,7 @@ import {
   ArrowRight,
   Info,
 } from 'lucide-react';
+import { uploadSingleFile } from '../../utils/imageUpload';
 
 export default function BulkBookingModal({ onNavigate }) {
   const { user, token } = useAuth();
@@ -68,24 +69,14 @@ export default function BulkBookingModal({ onNavigate }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('image', file);
-
     setUploadingScreenshot(true);
     try {
-      const res = await fetch('/api/upload/single', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success && data.imageUrl) {
-        setPaymentScreenshot(data.imageUrl);
+      const result = await uploadSingleFile(file, token);
+      if (result && result.url) {
+        setPaymentScreenshot(result.url);
         showToast('Payment receipt screenshot attached!', 'success');
       } else {
-        showToast(data.message || 'Screenshot upload failed', 'error');
+        showToast('Screenshot upload failed. Please try again.', 'error');
       }
     } catch (err) {
       showToast(err.message || 'Error uploading receipt', 'error');
@@ -182,38 +173,38 @@ export default function BulkBookingModal({ onNavigate }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fade-in">
+      <div className="bg-white rounded-3xl max-w-3xl w-full p-4 sm:p-8 space-y-4 sm:space-y-6 border border-slate-200 shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 flex items-center justify-center font-black text-xl shadow-md">
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 flex items-center justify-center font-black text-lg sm:text-xl shadow-md shrink-0">
               🛒
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-lg text-slate-900 font-heading">
-                  Wedding Convoy &amp; Bulk Fleet Cart
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 font-heading">
+                  Wedding Convoy &amp; Fleet Cart
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900">
-                  {cartCount} Cars Selected
+                <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-amber-100 text-amber-900">
+                  {cartCount} Cars
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Book multiple wedding cars together with a single advance payment &amp; coordinated reporting.
+              <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-1 sm:line-clamp-none">
+                Book multiple wedding cars together with a single advance payment.
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsCartOpen(false)}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Scrollable Content */}
-        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 pr-1">
+        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-5 sm:space-y-6 pr-1">
           {/* List of Cars in Convoy */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -238,35 +229,35 @@ export default function BulkBookingModal({ onNavigate }) {
                 <p className="text-slate-500 mt-1">Browse cars and click "+ Add to Fleet" to build your convoy.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5 sm:space-y-3">
                 {cartItems.map((item, idx) => (
                   <div
                     key={item.car._id}
-                    className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                    className="p-3 sm:p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-slate-400 font-bold">#{idx + 1}</span>
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <span className="font-mono text-slate-400 font-bold shrink-0">#{idx + 1}</span>
                       <img
                         src={item.car.images?.main}
                         alt={item.car.name}
-                        className="w-16 h-12 rounded-xl object-cover shrink-0 shadow-sm"
+                        className="w-14 h-11 sm:w-16 sm:h-12 rounded-xl object-cover shrink-0 shadow-sm"
                       />
                       <div className="min-w-0">
                         <div className="font-black text-sm text-slate-900 truncate">
                           {item.car.brand} {item.car.name}
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 sm:gap-2 mt-0.5 flex-wrap">
                           <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full text-[10px]">
                             {item.car.category}
                           </span>
                           <span>{item.car.seatingCapacity} Seater</span>
-                          <span>• {item.car.location?.address || 'NCR'}</span>
+                          <span className="hidden sm:inline">• {item.car.location?.address || 'NCR'}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
+                      <div className="text-left sm:text-right">
                         <span className="text-slate-400 text-[10px] block">Standard Rate</span>
                         <span className="font-black text-slate-900 text-sm">
                           ₹{(item.customTotal || item.car.pricing?.perDay || 5000).toLocaleString('en-IN')}
@@ -275,7 +266,7 @@ export default function BulkBookingModal({ onNavigate }) {
                       <button
                         type="button"
                         onClick={() => removeFromCart(item.car._id)}
-                        className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition"
+                        className="p-1.5 sm:p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition"
                         title="Remove vehicle"
                       >
                         <Trash2 className="w-4 h-4" />

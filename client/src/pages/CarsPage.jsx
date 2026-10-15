@@ -78,6 +78,7 @@ export default function CarsPage({
   const [radius, setRadius] = useState(100);
   const [lat, setLat] = useState(initialFilters.lat || null);
   const [lng, setLng] = useState(initialFilters.lng || null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const handleFindNearMe = () => {
     if (!navigator.geolocation) {
@@ -219,6 +220,23 @@ export default function CarsPage({
               <option value="price_desc">Price: High to Low</option>
               <option value="newest">Newly Listed</option>
             </select>
+
+            {/* Mobile Filter Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              className={`lg:hidden px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm border ${
+                mobileFiltersOpen
+                  ? 'bg-amber-500 text-slate-950 border-amber-600 font-black'
+                  : 'bg-white text-slate-800 border-slate-300'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
+              <span>{mobileFiltersOpen ? 'Hide Filters' : 'Filters'}</span>
+              {(category !== 'All' || search || weddingSpecial || maxPrice < 50000) && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              )}
+            </button>
 
             <div className="flex bg-slate-200 p-1 rounded-2xl">
               <button
@@ -419,9 +437,9 @@ export default function CarsPage({
         )}
 
         {/* Main Layout: Filters Sidebar + Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Filters Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+          {/* Filters Sidebar (Collapsible on Mobile) */}
+          <div className={`${mobileFiltersOpen ? 'block' : 'hidden'} lg:block lg:col-span-1 space-y-6 animate-fade-in`}>
             <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 font-black text-slate-900 text-sm">

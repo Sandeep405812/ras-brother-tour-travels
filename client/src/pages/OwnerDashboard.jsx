@@ -38,6 +38,7 @@ import {
   ArrowDownToLine,
   Eye,
 } from 'lucide-react';
+import { uploadSingleFile } from '../utils/imageUpload';
 
 export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavigate, onLogout }) {
   const { user, token } = useAuth();
@@ -305,30 +306,22 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     if (fieldName === 'mainImage') setUploadingMain(true);
     else setUploadingInterior(true);
 
     try {
-      const res = await fetch('/api/upload/single', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success && data.url) {
+      const result = await uploadSingleFile(file, token);
+      if (result && result.url) {
         targetFormSetter((prev) => ({
           ...prev,
-          [fieldName]: data.url,
+          [fieldName]: result.url,
         }));
         showToast('Photo uploaded successfully from device!', 'success');
       } else {
-        showToast(data.message || 'Upload failed', 'error');
+        showToast('Photo upload could not be completed. Please try again.', 'error');
       }
     } catch (err) {
-      showToast('Upload error: ' + err.message, 'error');
+      showToast('Upload error: ' + (err.message || 'File upload failed'), 'error');
     } finally {
       if (fieldName === 'mainImage') setUploadingMain(false);
       else setUploadingInterior(false);
@@ -643,7 +636,7 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none w-full md:w-auto">
             {[
               { id: 'overview', label: 'My Overview' },
               { id: 'fleet', label: `My Fleet (${myFleet.length})` },
@@ -656,7 +649,7 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-2xl text-xs font-bold transition ${
+                className={`px-3.5 sm:px-4 py-2 rounded-2xl text-xs font-bold transition shrink-0 whitespace-nowrap ${
                   tab.highlight
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-md'
                     : activeTab === tab.id

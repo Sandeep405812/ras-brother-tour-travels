@@ -79,19 +79,19 @@ export default function CarCard({ car, onBook, onMakeOffer, onViewDetails, route
           </div>
 
           {/* Location & Proximity Distance */}
-          <div className="flex items-center justify-between gap-2 mt-2 text-xs text-slate-500">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mt-2 text-xs text-slate-500">
             <div className="flex items-center gap-1.5 min-w-0">
               <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="truncate">{car.location?.address || 'Delhi NCR Region'}</span>
             </div>
             {car.distanceKm !== null && car.distanceKm !== undefined && (
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0 flex-wrap">
                 {car.distanceKm <= 15 && (
                   <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 flex items-center gap-0.5">
                     <Zap className="w-2.5 h-2.5" /> Near Venue
                   </span>
                 )}
-                <span className="font-black text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-sm flex items-center gap-1">
+                <span className="font-black text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-sm flex items-center gap-1">
                   📍 {car.distanceKm} km from venue
                 </span>
               </div>
@@ -116,7 +116,7 @@ export default function CarCard({ car, onBook, onMakeOffer, onViewDetails, route
         </div>
 
         {/* Pricing & Actions */}
-        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+        <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
           <div>
             {tripFare ? (
               <div>
