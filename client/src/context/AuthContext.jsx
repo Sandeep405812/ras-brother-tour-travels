@@ -20,7 +20,14 @@ export const AuthProvider = ({ children }) => {
         const res = await fetch('/api/auth/me', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.warn('Non-JSON response from /api/auth/me');
+          return;
+        }
         if (data.success) {
           setUser(data.user);
           localStorage.setItem('ras_user', JSON.stringify(data.user));
@@ -43,7 +50,13 @@ export const AuthProvider = ({ children }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('Backend server is starting up or unreachable. Please refresh and try again.');
+    }
     if (!res.ok || !data.success) {
       throw new Error(data.message || 'Login failed');
     }
@@ -60,7 +73,13 @@ export const AuthProvider = ({ children }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('Backend server is starting up or unreachable. Please refresh and try again.');
+    }
     if (!res.ok || !data.success) {
       throw new Error(data.message || 'Registration failed');
     }

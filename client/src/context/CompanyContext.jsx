@@ -22,7 +22,13 @@ export const CompanyProvider = ({ children }) => {
   const fetchSettings = async () => {
     try {
       const res = await fetch('/api/admin/company-settings/public');
-      const data = await res.json();
+      const text = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return;
+      }
       if (data.success && data.settings) {
         setCompany(data.settings);
       }
