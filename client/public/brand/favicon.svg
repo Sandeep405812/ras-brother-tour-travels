@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="50%" stop-color="#E5A93B"/>
+      <stop offset="100%" stop-color="#B47414"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1128"/>
+      <stop offset="100%" stop-color="#1C2541"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Shield -->
+  <rect width="100" height="100" rx="24" fill="url(#bgGrad)"/>
+  <rect x="3" y="3" width="94" height="94" rx="21" stroke="url(#goldGrad)" stroke-width="2.5" fill="none"/>
+  
+  <!-- Crown on Top -->
+  <path d="M35 30 L40 37 L50 25 L60 37 L65 30 L63 42 L37 42 Z" fill="url(#goldGrad)"/>
+  
+  <!-- Stylized Sleek Car Silhouette -->
+  <path d="M26 62 C32 55 42 54 50 54 C58 54 68 55 74 62 L78 68 C78 70 76 71 74 71 L26 71 C24 71 22 70 22 68 Z" fill="url(#goldGrad)" opacity="0.9"/>
+  <!-- Windows -->
+  <path d="M36 61 C40 57 46 56 50 56 C54 56 60 57 64 61 Z" fill="#0A1128"/>
+  
+  <!-- Wheels -->
+  <circle cx="34" cy="71" r="5" fill="#0A1128" stroke="url(#goldGrad)" stroke-width="2"/>
+  <circle cx="66" cy="71" r="5" fill="#0A1128" stroke="url(#goldGrad)" stroke-width="2"/>
+  
+  <!-- RAS Bold Text -->
+  <text x="50" y="52" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="14" fill="url(#goldGrad)" text-anchor="middle" letter-spacing="1">RAS</text>
+</svg>
