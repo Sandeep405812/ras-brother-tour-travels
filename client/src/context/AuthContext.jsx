@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
     try {
       data = JSON.parse(text);
     } catch {
-      throw new Error('Backend server is starting up or unreachable. Please refresh and try again.');
+      throw new Error(`API Error [Status ${res.status}]: ${text.substring(0, 120) || 'No response body'}`);
     }
     if (!res.ok || !data.success) {
       throw new Error(data.message || 'Login failed');

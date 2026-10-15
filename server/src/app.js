@@ -25,8 +25,17 @@ app.set('trust proxy', 1);
 
 // Security Middleware
 app.use(helmet({
-  crossOriginResourcePolicy: false, // allow images to be accessed cross-origin
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false,
 }));
+
+// Request Logger
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api')) {
+    console.log(`[REQ ${new Date().toLocaleTimeString()}]: ${req.method} ${req.url}`);
+  }
+  next();
+});
 
 // CORS Configuration
 app.use(cors({
