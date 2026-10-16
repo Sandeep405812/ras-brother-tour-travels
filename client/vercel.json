@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://proteins-loved-incl-solaris.trycloudflare.com/api/$1"
+      "destination": "https://remarks-landscape-chemicals-victor.trycloudflare.com/api/$1"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "https://proteins-loved-incl-solaris.trycloudflare.com/uploads/$1"
+      "destination": "https://remarks-landscape-chemicals-victor.trycloudflare.com/uploads/$1"
     },
     {
       "source": "/brand/(.*)",
-      "destination": "https://proteins-loved-incl-solaris.trycloudflare.com/brand/$1"
+      "destination": "https://remarks-landscape-chemicals-victor.trycloudflare.com/brand/$1"
     },
     {
       "source": "/(.*)",
