@@ -1,16 +1,20 @@
 {
   "rewrites": [
     {
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": "/api/index"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/api"
+      "destination": "/api/index"
     },
     {
       "source": "/brand/(.*)",
-      "destination": "/api"
+      "destination": "/api/index"
     },
     {
       "source": "/(.*)",
