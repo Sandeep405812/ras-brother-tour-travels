@@ -13,10 +13,10 @@ const connectDB = async () => {
   }
 
   try {
-    const mongoUri =
-      process.env.MONGO_URI ||
-      process.env.MONGODB_URI ||
-      'mongodb+srv://ss9918272164_db_user:sandeep9918@as.kebxijm.mongodb.net/ras_brother_tour_travels?appName=as';
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+    if (!mongoUri) {
+      throw new Error('Database configuration error: MONGO_URI / MONGODB_URI is not set in environment.');
+    }
 
     const conn = await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 8000,
