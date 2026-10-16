@@ -177,9 +177,14 @@ const bookingSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rejected'],
     default: 'pending',
   },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'cod', 'online', 'upi', 'razorpay'],
+    default: 'cash',
+  },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'advance_paid', 'fully_paid', 'refunded'],
+    enum: ['pending', 'advance_paid', 'fully_paid', 'refunded', 'pay_on_pickup'],
     default: 'pending',
   },
   cancellationReason: {

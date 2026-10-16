@@ -157,57 +157,132 @@ export function resolveCoordinates(address) {
   return [77.2090, 28.6139];
 }
 
-// Search Places & Landmarks Autocomplete Engine
-// Returns matched suggestions from verified landmarks + live geocoding fallback
+// In-memory cache for ultra-fast autocomplete lookups
+const placeCache = new Map();
+
+// Search Places & Landmarks Autocomplete Engine (Ola / Uber Style)
+// Suggests every Indian locality, city, landmark, airport, railway station, and street
 export async function searchPlaces(query) {
   if (!query || query.trim().length === 0) {
-    // Return top popular recommendations when empty
     return POPULAR_LOCATIONS.slice(0, 8);
   }
 
-  const q = query.trim().toLowerCase();
+  const cleanQuery = query.trim();
+  const lowerQ = cleanQuery.toLowerCase();
 
-  // 1. Filter verified landmarks first
+  // Check in-memory cache
+  if (placeCache.has(lowerQ)) {
+    return placeCache.get(lowerQ);
+  }
+
+  // 1. Local verified hubs & landmarks
   const localMatches = POPULAR_LOCATIONS.filter((loc) =>
-    loc.name.toLowerCase().includes(q)
+    loc.name.toLowerCase().includes(lowerQ)
   );
 
-  if (localMatches.length >= 3) {
-    return localMatches.slice(0, 8);
-  }
+  let onlineMatches = [];
 
-  // 2. Fetch live suggestions from free OpenStreetMap Nominatim for any Indian address
+  // 2. Fetch live suggestions from Photon (OpenStreetMap Autocomplete Service)
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=5&addressdetails=1`,
-      { headers: { 'Accept-Language': 'en' } }
-    );
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=10`;
+    const res = await fetch(photonUrl);
     if (res.ok) {
       const data = await res.json();
-      const onlineMatches = data.map((item) => ({
-        name: item.display_name.split(',').slice(0, 3).join(', '),
-        fullAddress: item.display_name,
-        type: 'address',
-        icon: '📍',
-        coords: [parseFloat(item.lon), parseFloat(item.lat)],
-      }));
+      if (data && Array.isArray(data.features)) {
+        onlineMatches = data.features
+          .filter((f) => {
+            const country = (f.properties?.country || '').toLowerCase();
+            const countrycode = (f.properties?.countrycode || '').toLowerCase();
+            // Prioritize India
+            return countrycode === 'in' || country.includes('india') || !countrycode;
+          })
+          .map((f) => {
+            const p = f.properties || {};
+            const coords = f.geometry?.coordinates || [77.2090, 28.6139];
+            const name = p.name || p.street || p.city || cleanQuery;
 
-      // Combine local + online matches, avoiding duplicates
-      const combined = [...localMatches];
-      for (const online of onlineMatches) {
-        if (!combined.some((c) => c.name.toLowerCase() === online.name.toLowerCase())) {
-          combined.push(online);
-        }
+            const addrParts = [
+              p.street,
+              p.district || p.suburb || p.county,
+              p.city,
+              p.state,
+              p.postcode,
+            ].filter(Boolean);
+
+            const fullAddress = addrParts.length > 0 ? addrParts.join(', ') : (p.country || 'India');
+
+            let icon = '📍';
+            let type = p.osm_value || p.type || 'place';
+            if (p.osm_key === 'aeroway' || p.osm_value === 'aerodrome' || name.toLowerCase().includes('airport')) {
+              icon = '✈️';
+              type = 'airport';
+            } else if (p.osm_key === 'railway' || name.toLowerCase().includes('station') || name.toLowerCase().includes('junction')) {
+              icon = '🚆';
+              type = 'station';
+            } else if (p.osm_key === 'tourism' && p.osm_value === 'hotel') {
+              icon = '🏨';
+              type = 'hotel';
+            }
+
+            return {
+              name,
+              fullAddress,
+              type,
+              icon,
+              coords,
+            };
+          });
       }
-      return combined.slice(0, 8);
     }
   } catch (err) {
-    console.warn('Geocoding fetch error, using local database:', err);
+    console.warn('Photon geocoding error:', err.message);
   }
 
-  return localMatches.length > 0 ? localMatches : [
-    { name: query, type: 'custom', icon: '📍', coords: resolveCoordinates(query) }
+  // 3. Fallback to OpenStreetMap Nominatim if Photon returned few results
+  if (onlineMatches.length < 3) {
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery)}&countrycodes=in&limit=8&addressdetails=1`;
+      const res = await fetch(nomUrl, { headers: { 'Accept-Language': 'en' } });
+      if (res.ok) {
+        const nomData = await res.json();
+        const nomList = nomData.map((item) => {
+          const parts = (item.display_name || '').split(',').map((s) => s.trim());
+          const name = parts.slice(0, 2).join(', ');
+          const fullAddress = parts.slice(2).join(', ') || item.display_name;
+          return {
+            name,
+            fullAddress,
+            type: item.type || 'address',
+            icon: item.type === 'aerodrome' ? '✈️' : item.type === 'station' ? '🚆' : '📍',
+            coords: [parseFloat(item.lon), parseFloat(item.lat)],
+          };
+        });
+        onlineMatches = [...onlineMatches, ...nomList];
+      }
+    } catch (nomErr) {
+      console.warn('Nominatim geocoding error:', nomErr.message);
+    }
+  }
+
+  // Combine local matches + online suggestions, eliminating duplicates
+  const seen = new Set();
+  const results = [];
+
+  for (const item of [...localMatches, ...onlineMatches]) {
+    const key = `${item.name.toLowerCase()}-${item.coords?.[0]?.toFixed(2)}-${item.coords?.[1]?.toFixed(2)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      results.push(item);
+    }
+  }
+
+  // If still empty, return typed place with estimated coordinates
+  const finalResults = results.length > 0 ? results.slice(0, 10) : [
+    { name: cleanQuery, fullAddress: 'Custom Address, India', type: 'custom', icon: '📍', coords: resolveCoordinates(cleanQuery) }
   ];
+
+  placeCache.set(lowerQ, finalResults);
+  return finalResults;
 }
 
 // Ola/Uber Style Dynamic Fare Breakdown

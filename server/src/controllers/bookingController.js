@@ -36,9 +36,9 @@ exports.createBooking = async (req, res, next) => {
       specialRequests = '',
       couponCode,
       offerId,
-      customTotalAmount,
       paymentScreenshot = '',
       utrNumber = '',
+      paymentMethod = 'cash',
       decorationPackage,
       gstDetails,
     } = req.body;
@@ -153,7 +153,8 @@ exports.createBooking = async (req, res, next) => {
       gstDetails: gstDetails || undefined,
       paymentScreenshot: paymentScreenshot || '',
       utrNumber: utrNumber || '',
-      paymentVerificationStatus: paymentScreenshot ? 'pending_verification' : 'none',
+      paymentMethod: paymentMethod === 'online' || paymentMethod === 'upi' ? 'online' : 'cash',
+      paymentVerificationStatus: (paymentMethod === 'online' || paymentMethod === 'upi') && paymentScreenshot ? 'pending_verification' : 'none',
       driverRequired,
       specialRequests,
       pricing: {
@@ -167,7 +168,11 @@ exports.createBooking = async (req, res, next) => {
         remainingAmount,
       },
       status: isDirect ? 'confirmed' : 'pending',
-      paymentStatus: isDirect ? 'advance_paid' : (paymentScreenshot ? 'pending' : 'pending'),
+      paymentStatus: isDirect
+        ? 'advance_paid'
+        : (paymentMethod === 'cash' || paymentMethod === 'cod')
+        ? 'pay_on_pickup'
+        : (paymentScreenshot ? 'advance_paid' : 'pending'),
       offerId: offerId || undefined,
     });
 
@@ -558,6 +563,7 @@ exports.createBulkBooking = async (req, res, next) => {
       distanceKm = 0,
       paymentScreenshot = '',
       utrNumber = '',
+      paymentMethod = 'cash',
       specialRequests = '',
     } = req.body;
 
@@ -638,7 +644,9 @@ exports.createBulkBooking = async (req, res, next) => {
         },
         paymentScreenshot,
         utrNumber,
-        paymentVerificationStatus: paymentScreenshot || utrNumber ? 'pending_verification' : 'none',
+        paymentMethod: paymentMethod === 'online' || paymentMethod === 'upi' ? 'online' : 'cash',
+        paymentStatus: (paymentMethod === 'cash' || paymentMethod === 'cod') ? 'pay_on_pickup' : (paymentScreenshot ? 'advance_paid' : 'pending'),
+        paymentVerificationStatus: (paymentMethod === 'online' || paymentMethod === 'upi') && paymentScreenshot ? 'pending_verification' : 'none',
         startOtp,
         status: 'pending',
       });

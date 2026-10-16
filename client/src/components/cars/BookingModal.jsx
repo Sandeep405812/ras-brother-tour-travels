@@ -136,6 +136,7 @@ export default function BookingModal({
   const [loading, setLoading] = useState(false);
 
   // UPI QR Code & Payment Receipt State
+  const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod' | 'online'
   const [paymentScreenshot, setPaymentScreenshot] = useState('');
   const [utrNumber, setUtrNumber] = useState('');
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
@@ -266,7 +267,7 @@ export default function BookingModal({
       return;
     }
 
-    if (!directBookingMode) {
+    if (!directBookingMode && paymentMethod === 'online') {
       if (!utrNumber || utrNumber.trim().length < 4) {
         showToast('Please enter your UPI UTR / Transaction Reference Number', 'error');
         return;
@@ -315,8 +316,9 @@ export default function BookingModal({
             customerGstin,
             businessName: gstBusinessName,
           } : undefined,
-          paymentScreenshot: directBookingMode ? '' : paymentScreenshot,
-          utrNumber: directBookingMode ? '' : utrNumber.trim(),
+          paymentMethod: directBookingMode ? 'cash' : (paymentMethod === 'cod' ? 'cash' : 'online'),
+          paymentScreenshot: directBookingMode || paymentMethod === 'cod' ? '' : paymentScreenshot,
+          utrNumber: directBookingMode || paymentMethod === 'cod' ? '' : utrNumber.trim(),
         }),
       });
 
@@ -336,6 +338,8 @@ export default function BookingModal({
 
       if (directBookingMode && isOwnerOrAdmin) {
         showToast(`Car reserved successfully for ${offlineName || 'Client'}!`, 'success');
+      } else if (paymentMethod === 'cod') {
+        showToast(`🎉 Booking #${createdBooking.bookingId} Confirmed with Cash on Delivery! Pay ₹${grandTotal.toLocaleString('en-IN')} to chauffeur at pickup.`, 'success');
       } else {
         showToast(`Advance payment screenshot submitted! Booking #${createdBooking.bookingId} placed. Fleet owner will verify screenshot and confirm your order.`, 'success');
       }
@@ -812,131 +816,232 @@ export default function BookingModal({
             </div>
           </div>
 
-          {/* Fixed UPI QR Code & Payment Receipt Upload */}
+          {/* Payment Method Choice (COD vs Online) */}
           {!directBookingMode && (
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-amber-950 text-white border-2 border-amber-400 space-y-4 shadow-xl">
-              <div className="flex items-center justify-between pb-3 border-b border-amber-400/20">
-                <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-amber-400" />
-                  <div>
-                    <h4 className="font-extrabold text-sm text-white">Scan Official UPI QR to Pay Advance</h4>
-                    <p className="text-[11px] text-amber-300">Advance Amount: ₹{advanceAmount.toLocaleString('en-IN')}</p>
-                  </div>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-amber-500" /> Select Payment Preference
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Choose Cash on Delivery (Pay to Chauffeur) or Instant Online Advance
+                  </p>
                 </div>
-                <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-amber-400 text-slate-950">
-                  Instant UPI QR
+                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  COD Available
                 </span>
               </div>
 
-              {/* QR Image & Merchant Info */}
-              <div className="flex flex-col sm:flex-row items-center gap-5 bg-white/5 p-4 rounded-2xl border border-white/10">
-                {/* Fixed QR Code */}
-                <div className="p-3 bg-white rounded-2xl shrink-0 shadow-lg flex flex-col items-center">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=rasbrother@upi&pn=RAS%20Brother%20Tour%20and%20Travels&am=${advanceAmount}&cu=INR`)}`}
-                    alt="RAS Brother UPI QR Code"
-                    className="w-36 h-36 object-contain"
-                  />
-                  <span className="text-[10px] font-black uppercase text-slate-900 mt-1.5 tracking-wider">
-                    RAS BROTHER UPI
-                  </span>
+              {/* COD and Online Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Cash on Delivery (COD) */}
+                <div
+                  onClick={() => setPaymentMethod('cod')}
+                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                    paymentMethod === 'cod'
+                      ? 'border-emerald-500 bg-emerald-50/90 shadow-md ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">💵</span>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        paymentMethod === 'cod' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        Zero Advance
+                      </span>
+                    </div>
+                    <div className="font-extrabold text-sm text-slate-900 leading-tight">
+                      Cash on Delivery (COD)
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      Pay full ₹{grandTotal.toLocaleString('en-IN')} in cash or UPI directly to your assigned chauffeur upon car reporting.
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-emerald-900">
+                    <span>Pay at Pickup:</span>
+                    <span className="text-sm font-black text-emerald-700">₹{grandTotal.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
 
-                <div className="space-y-2.5 text-xs flex-1">
+                {/* 2. Online Advance Payment */}
+                <div
+                  onClick={() => setPaymentMethod('online')}
+                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                    paymentMethod === 'online'
+                      ? 'border-amber-500 bg-amber-50/90 shadow-md ring-2 ring-amber-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Official Business UPI ID</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="font-mono font-bold text-amber-300 bg-black/60 px-3 py-1.5 rounded-xl border border-amber-400/30 text-sm">
-                        rasbrother@upi
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">⚡</span>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        paymentMethod === 'online' ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        Instant Lock
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText('rasbrother@upi');
-                          showToast('UPI ID copied to clipboard!', 'success');
-                        }}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 text-xs flex items-center gap-1 border border-slate-700 transition"
-                      >
-                        <Copy className="w-3.5 h-3.5" /> Copy
-                      </button>
+                    </div>
+                    <div className="font-extrabold text-sm text-slate-900 leading-tight">
+                      UPI QR / Online Advance
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      Pay advance (₹{advanceAmount.toLocaleString('en-IN')}) via UPI QR to guarantee immediate car slot reservation.
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-amber-900">
+                    <span>Advance Due Now:</span>
+                    <span className="text-sm font-black text-amber-700">₹{advanceAmount.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* COD Reassurance Note */}
+              {paymentMethod === 'cod' && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-start gap-3 text-xs text-emerald-900">
+                  <span className="text-xl shrink-0">✅</span>
+                  <div>
+                    <strong className="block font-bold text-emerald-950 mb-0.5">Pay to Driver on Reporting Confirmed</strong>
+                    No advance payment required right now. Your trip booking will be reserved and driver details will be shared on your registered phone.
+                  </div>
+                </div>
+              )}
+
+              {/* Online UPI QR Code & Receipt Form */}
+              {paymentMethod === 'online' && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-amber-950 text-white border-2 border-amber-400 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between pb-3 border-b border-amber-400/20">
+                    <div className="flex items-center gap-2">
+                      <QrCode className="w-5 h-5 text-amber-400" />
+                      <div>
+                        <h4 className="font-extrabold text-sm text-white">Scan Official UPI QR to Pay Advance</h4>
+                        <p className="text-[11px] text-amber-300">Advance Amount: ₹{advanceAmount.toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-amber-400 text-slate-950">
+                      Instant UPI QR
+                    </span>
+                  </div>
+
+                  {/* QR Image & Merchant Info */}
+                  <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/5 p-3.5 rounded-2xl border border-white/10">
+                    {/* Fixed QR Code */}
+                    <div className="p-3 bg-white rounded-2xl shrink-0 shadow-lg flex flex-col items-center">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`upi://pay?pa=rasbrother@upi&pn=RAS%20Brother%20Tour%20and%20Travels&am=${advanceAmount}&cu=INR`)}`}
+                        alt="RAS Brother UPI QR Code"
+                        className="w-32 h-32 object-contain"
+                      />
+                      <span className="text-[10px] font-black uppercase text-slate-900 mt-1 tracking-wider">
+                        RAS BROTHER UPI
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs flex-1 text-center sm:text-left">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Official Business UPI ID</span>
+                        <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                          <span className="font-mono font-bold text-amber-300 bg-black/60 px-3 py-1.5 rounded-xl border border-amber-400/30 text-sm">
+                            rasbrother@upi
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('rasbrother@upi');
+                              showToast('UPI ID copied to clipboard!', 'success');
+                            }}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 text-xs flex items-center gap-1 border border-slate-700 transition"
+                          >
+                            <Copy className="w-3.5 h-3.5" /> Copy
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-300 space-y-1">
+                        <div>✓ Scan with <strong>Google Pay, PhonePe, Paytm, or BHIM</strong>.</div>
+                        <div>✓ Pay exact advance: <strong className="text-emerald-400 font-mono">₹{advanceAmount.toLocaleString('en-IN')}</strong>.</div>
+                        <div>✓ Enter 12-digit UTR reference number and upload screenshot below.</div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-300 space-y-1">
-                    <div>✓ Scan with <strong>Google Pay, PhonePe, Paytm, or BHIM</strong>.</div>
-                    <div>✓ Pay exact advance: <strong className="text-emerald-400 font-mono">₹{advanceAmount.toLocaleString('en-IN')}</strong>.</div>
-                    <div>✓ Enter 12-digit UTR reference number and upload screenshot below.</div>
+                  {/* UTR & Screenshot Inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
+                    <div>
+                      <label className="block text-slate-300 mb-1">
+                        UPI Transaction UTR / Ref No. <span className="text-amber-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required={paymentMethod === 'online'}
+                        placeholder="e.g. 428941092831 (12 digits)"
+                        value={utrNumber}
+                        onChange={(e) => setUtrNumber(e.target.value)}
+                        className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 mb-1">
+                        Payment Receipt Screenshot <span className="text-amber-400">*</span>
+                      </label>
+                      <label className="flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-amber-400/80 bg-amber-400/10 hover:bg-amber-400/20 cursor-pointer transition text-amber-300">
+                        <Upload className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="font-bold text-xs truncate">
+                          {uploadingScreenshot ? 'Uploading...' : paymentScreenshot ? '✓ Screenshot Uploaded' : '📁 Upload Screenshot'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleUploadScreenshot}
+                        />
+                      </label>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* UTR & Screenshot Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
-                <div>
-                  <label className="block text-slate-300 mb-1">
-                    UPI Transaction UTR / Ref No. <span className="text-amber-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required={!directBookingMode}
-                    placeholder="e.g. 428941092831 (12 digits)"
-                    value={utrNumber}
-                    onChange={(e) => setUtrNumber(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 mb-1">
-                    Payment Receipt Screenshot <span className="text-amber-400">*</span>
-                  </label>
-                  <label className="flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-amber-400/80 bg-amber-400/10 hover:bg-amber-400/20 cursor-pointer transition text-amber-300">
-                    <Upload className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="font-bold text-xs truncate">
-                      {uploadingScreenshot ? 'Uploading...' : paymentScreenshot ? '✓ Screenshot Uploaded' : '📁 Upload Screenshot'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleUploadScreenshot}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              {paymentScreenshot && (
-                <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-center gap-3">
-                  <img src={paymentScreenshot} alt="Receipt preview" className="w-12 h-12 object-cover rounded-lg border border-emerald-400 shrink-0" />
-                  <div className="text-[11px] text-emerald-300 font-medium">
-                    <strong className="block text-emerald-400 font-bold">Screenshot Attached Successfully!</strong>
-                    The fleet owner will review this receipt and confirm your reservation.
-                  </div>
+                  {paymentScreenshot && (
+                    <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-center gap-3">
+                      <img src={paymentScreenshot} alt="Receipt preview" className="w-12 h-12 object-cover rounded-lg border border-emerald-400 shrink-0" />
+                      <div className="text-[11px] text-emerald-300 font-medium">
+                        <strong className="block text-emerald-400 font-bold">Screenshot Attached Successfully!</strong>
+                        The fleet owner will review this receipt and confirm your reservation.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* Action CTAs */}
-          <div className="pt-2 flex items-center justify-end gap-3">
+          {/* Action CTAs (Mobile Responsive) */}
+          <div className="pt-3 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-lg shadow-amber-500/25 flex items-center gap-2 transition disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50"
             >
-              <CreditCard className="w-4 h-4" />
-              {loading
-                ? 'Processing...'
-                : directBookingMode
-                ? `Confirm Direct Reservation (₹${grandTotal.toLocaleString('en-IN')})`
-                : `Submit Payment Receipt & Place Order (₹${advanceAmount.toLocaleString('en-IN')})`}
+              <CreditCard className="w-4 h-4 shrink-0" />
+              <span>
+                {loading
+                  ? 'Processing...'
+                  : directBookingMode
+                  ? `Confirm Direct Reservation (₹${grandTotal.toLocaleString('en-IN')})`
+                  : paymentMethod === 'cod'
+                  ? `Confirm with Cash on Delivery (₹${grandTotal.toLocaleString('en-IN')})`
+                  : `Submit Payment Receipt & Reserve (₹${advanceAmount.toLocaleString('en-IN')})`}
+              </span>
             </button>
           </div>
         </form>
