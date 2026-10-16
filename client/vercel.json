@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://goto-composer-bachelor-original.trycloudflare.com/api/$1"
+      "destination": "https://similar-opinions-oral-bull.trycloudflare.com/api/$1"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "https://goto-composer-bachelor-original.trycloudflare.com/uploads/$1"
+      "destination": "https://similar-opinions-oral-bull.trycloudflare.com/uploads/$1"
     },
     {
       "source": "/brand/(.*)",
-      "destination": "https://goto-composer-bachelor-original.trycloudflare.com/brand/$1"
+      "destination": "https://similar-opinions-oral-bull.trycloudflare.com/brand/$1"
     },
     {
       "source": "/(.*)",
