@@ -1,20 +1,16 @@
 {
   "rewrites": [
     {
-      "source": "/api/health",
-      "destination": "/api/health"
-    },
-    {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "https://caribbean-hook-expo-generating.trycloudflare.com/api/$1"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/api/index"
+      "destination": "https://caribbean-hook-expo-generating.trycloudflare.com/uploads/$1"
     },
     {
       "source": "/brand/(.*)",
-      "destination": "/api/index"
+      "destination": "https://caribbean-hook-expo-generating.trycloudflare.com/brand/$1"
     },
     {
       "source": "/(.*)",
