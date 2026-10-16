@@ -101,15 +101,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Production Client Static Serving & SPA Fallback
-const clientDistPath = path.join(__dirname, '../../client/dist');
-app.use(express.static(clientDistPath));
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/brand')) {
-    return next();
-  }
-  res.sendFile(path.resolve(clientDistPath, 'index.html'));
-});
+// Production Client Static Serving & SPA Fallback (Only in standalone node server)
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const clientDistPath = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/brand')) {
+      return next();
+    }
+    res.sendFile(path.resolve(clientDistPath, 'index.html'));
+  });
+}
 
 // Centralized Error Handling Middleware
 app.use(errorHandler);
