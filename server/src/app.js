@@ -60,6 +60,24 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/brand', express.static(path.join(__dirname, '../public/brand')));
 
+const connectDB = require('./config/db');
+
+// Ensure database is connected before API requests (handles serverless cold starts)
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('Database connection failed on request:', err.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection failed. Please try again.',
+      });
+    }
+  }
+  next();
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cars', carRoutes);

@@ -9,11 +9,20 @@ router.post('/single', protect, upload.single('file'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Please upload a file' });
     }
-    const fileUrl = `/uploads/${req.file.filename}`;
+
+    let fileUrl = '';
+    if (req.file.buffer) {
+      // Serverless memory buffer -> Data URI
+      const mime = req.file.mimetype || 'image/jpeg';
+      fileUrl = `data:${mime};base64,${req.file.buffer.toString('base64')}`;
+    } else {
+      fileUrl = `/uploads/${req.file.filename}`;
+    }
+
     res.json({
       success: true,
       url: fileUrl,
-      filename: req.file.filename,
+      filename: req.file.filename || req.file.originalname,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -38,14 +47,23 @@ router.post(
       const files = req.files || {};
       const urls = {};
 
+      const resolveUrl = (f) => {
+        if (!f) return '';
+        if (f.buffer) {
+          const mime = f.mimetype || 'image/jpeg';
+          return `data:${mime};base64,${f.buffer.toString('base64')}`;
+        }
+        return `/uploads/${f.filename}`;
+      };
+
       ['main', 'front', 'rear', 'side', 'interior', 'dashboard'].forEach((field) => {
         if (files[field] && files[field][0]) {
-          urls[field] = `/uploads/${files[field][0].filename}`;
+          urls[field] = resolveUrl(files[field][0]);
         }
       });
 
       if (files.gallery) {
-        urls.gallery = files.gallery.map((f) => `/uploads/${f.filename}`);
+        urls.gallery = files.gallery.map(resolveUrl);
       }
 
       res.json({

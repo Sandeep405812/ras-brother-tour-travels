@@ -1,18 +1,19 @@
 {
+  "version": 2,
   "buildCommand": "npm --prefix client run build",
   "outputDirectory": "client/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://remarks-landscape-chemicals-victor.trycloudflare.com/api/$1"
+      "destination": "/api"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "https://remarks-landscape-chemicals-victor.trycloudflare.com/uploads/$1"
+      "destination": "/api"
     },
     {
       "source": "/brand/(.*)",
-      "destination": "https://remarks-landscape-chemicals-victor.trycloudflare.com/brand/$1"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",
