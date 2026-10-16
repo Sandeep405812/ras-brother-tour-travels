@@ -4,15 +4,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://similar-opinions-oral-bull.trycloudflare.com/api/$1"
+      "destination": "https://ras-brother-tour-travels.onrender.com/api/$1"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "https://similar-opinions-oral-bull.trycloudflare.com/uploads/$1"
+      "destination": "https://ras-brother-tour-travels.onrender.com/uploads/$1"
     },
     {
       "source": "/brand/(.*)",
-      "destination": "https://similar-opinions-oral-bull.trycloudflare.com/brand/$1"
+      "destination": "https://ras-brother-tour-travels.onrender.com/brand/$1"
     },
     {
       "source": "/(.*)",
