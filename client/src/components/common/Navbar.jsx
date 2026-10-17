@@ -245,7 +245,7 @@ export default function Navbar({ onNavigate, currentPage }) {
                           className="w-full text-left px-4 py-2.5 text-xs flex items-center gap-2.5 hover:bg-slate-800 text-slate-300 hover:text-amber-400"
                         >
                           <Car className="w-4 h-4 text-amber-400" />
-                          Manage Fleet &amp; Rates
+                          मेरी गाड़ियाँ और बुकिंग (My Cars &amp; Bookings)
                         </button>
                       )}
 

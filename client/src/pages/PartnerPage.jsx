@@ -11,13 +11,13 @@ export default function PartnerPage({ onNavigate }) {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         <div className="text-center max-w-3xl mx-auto space-y-4">
           <span className="text-xs font-black tracking-widest uppercase text-amber-600">
-            FLEET VENDOR OPPORTUNITY
+            CAR OWNER PARTNERSHIP / गाड़ी जोड़ें
           </span>
           <h1 className="text-4xl sm:text-5xl font-black text-slate-900 font-heading">
             Partner with {company.companyName}
           </h1>
           <p className="text-slate-600 text-sm leading-relaxed">
-            Turn your luxury sedans, vintage classics, party SUVs, and fleet vehicles into high-earning assets by connecting with pre-verified marriage and event organizers.
+            अपनी गाड़ियों (कार, एसयूवी, सेडान) को RAS Brother Tour &amp; Travels से जोड़ें और हर महीने घर बैठे बेहतरीन कमाई करें।
           </p>
 
           <div className="pt-2 flex justify-center gap-3">
@@ -25,7 +25,7 @@ export default function PartnerPage({ onNavigate }) {
               onClick={() => onNavigate('register')}
               className="px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-xl shadow-amber-500/25 flex items-center gap-2"
             >
-              Register as Fleet Partner <ArrowRight className="w-4 h-4" />
+              गाड़ी मालिक के रूप में जुड़ें (Register as Car Owner) <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>

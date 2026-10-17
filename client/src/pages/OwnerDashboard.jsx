@@ -5,413 +5,255 @@ import { useNotification } from '../context/NotificationContext';
 import {
   Car,
   Calendar,
-  CreditCard,
-  HandCoins,
   Plus,
-  ShieldCheck,
+  Phone,
+  MapPin,
+  Fuel,
+  Users,
   CheckCircle,
   XCircle,
   Clock,
-  Star,
-  MessageSquare,
-  Upload,
-  Edit,
   Trash2,
-  MapPin,
-  Tag,
-  DollarSign,
-  UserCheck,
-  FileText,
-  Image as ImageIcon,
-  Check,
-  LogOut,
-  X,
+  Edit,
   Key,
-  Phone,
-  Shield,
-  Wallet,
-  Sparkles,
-  Share2,
-  Send,
-  QrCode,
+  ShieldCheck,
   AlertCircle,
-  ArrowDownToLine,
-  Eye,
+  LogOut,
+  Upload,
+  Sparkles,
+  Check,
+  X,
+  CreditCard,
+  Navigation,
 } from 'lucide-react';
 import { uploadSingleFile } from '../utils/imageUpload';
 
-export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavigate, onLogout }) {
+export default function OwnerDashboard({ onNavigate, onLogout }) {
   const { user, token } = useAuth();
   const { showToast } = useNotification();
 
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'fleet' | 'bookings' | 'offers' | 'wallet' | 'kyc' | 'add-car'
-  const [stats, setStats] = useState(null);
-  const [ownerProfile, setOwnerProfile] = useState(null);
+  // Tab state: ONLY 2 TABS for simplicity
+  const [activeTab, setActiveTab] = useState('cars'); // 'cars' | 'bookings'
+  const [bookingFilter, setBookingFilter] = useState('all'); // 'all' | 'pending' | 'confirmed' | 'in_progress' | 'completed'
+
+  // Data states
   const [myFleet, setMyFleet] = useState([]);
   const [ownerBookings, setOwnerBookings] = useState([]);
-  const [ownerOffers, setOwnerOffers] = useState([]);
-  const [kycInfo, setKycInfo] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Counter offer modal state
-  const [counterModalOpen, setCounterModalOpen] = useState(false);
-  const [selectedOffer, setSelectedOffer] = useState(null);
-  const [counterAmount, setCounterAmount] = useState(0);
+  // Modals state
+  const [carModalOpen, setCarModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingCarId, setEditingCarId] = useState(null);
 
-  // Edit Car Modal state
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingCar, setEditingCar] = useState(null);
+  // Date Unavailability Modal
+  const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [selectedCarForDates, setSelectedCarForDates] = useState(null);
+  const [dateToBlock, setDateToBlock] = useState('');
 
-  // OTP Start Ride Modal state
+  // Start Ride with OTP Modal
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [selectedBookingForOtp, setSelectedBookingForOtp] = useState(null);
   const [otpInput, setOtpInput] = useState('');
 
-  // Complete Trip Modal state
+  // Complete Ride Modal
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [selectedBookingForComplete, setSelectedBookingForComplete] = useState(null);
-  const [completeMethod, setCompleteMethod] = useState('cash'); // 'cash' | 'upi'
-  const [collectedAmount, setCollectedAmount] = useState(0);
+  const [collectionMethod, setCollectionMethod] = useState('cash');
 
-  // Assign Chauffeur Modal state
-  const [chauffeurModalOpen, setChauffeurModalOpen] = useState(false);
-  const [selectedBookingForChauffeur, setSelectedBookingForChauffeur] = useState(null);
-  const [chauffeurForm, setChauffeurForm] = useState({ name: '', phone: '', vehiclePlate: '' });
+  // Uploading state
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Payment Receipt Verification Modal state
-  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
-  const [viewingReceipt, setViewingReceipt] = useState(null);
-
-  // Payout Modal state
-  const [payoutModalOpen, setPayoutModalOpen] = useState(false);
-  const [payoutForm, setPayoutForm] = useState({
-    amount: '',
-    method: 'UPI',
-    upiId: '',
-    accountNo: '',
-    ifsc: '',
-    bankName: '',
-    holderName: '',
-  });
-
-  // Custom Date Availability Modal State
-  const [dateModalOpen, setDateModalOpen] = useState(false);
-  const [selectedCarForDates, setSelectedCarForDates] = useState(null);
-  const [customDateToBlock, setCustomDateToBlock] = useState('');
-
-  // Upload progress indicators
-  const [uploadingMain, setUploadingMain] = useState(false);
-  const [uploadingInterior, setUploadingInterior] = useState(false);
-
-  // Add Car Form state
-  const [carForm, setCarForm] = useState({
+  // Car Form state - Simple & Intuitive
+  const initialCarForm = {
     name: '',
     brand: 'Standard',
-    model: 'Latest',
-    variant: '',
-    year: 2024,
-    color: 'White',
+    model: '2024',
+    perKm: 20,
+    locationAddress: '',
+    fuelIncluded: true, // true = तेल गाड़ी का (Fuel Included), false = तेल ग्राहक का (Fuel Extra)
     seatingCapacity: 5,
     fuelType: 'Diesel',
-    fuelIncluded: true, // Fuel Included vs Fuel Extra Charge
-    paymentMethods: ['cod', 'online'],
-    transmission: 'Manual',
-    isAC: true,
-    category: 'Sedan',
-    description: 'Well maintained, verified chauffeur driven vehicle.',
     mainImage: '',
-    interiorImage: '',
-    perKm: 20, // Default ₹20/km
-    basePrice: 1000,
-    perHour: 800,
-    perDay: 2000,
-    extraKmRate: 20,
-    driverCharges: 0,
-    nightCharges: 300,
-    decorationCharges: 0,
-    advanceType: 'percentage',
-    advanceValue: 20,
-    address: 'Delhi NCR',
-    city: 'Delhi NCR',
-    serviceRadiusKm: 100,
-    weddingSpecial: false,
-  });
+    description: '',
+    paymentMethods: ['cod', 'online'],
+  };
+  const [carForm, setCarForm] = useState(initialCarForm);
 
-  // KYC Form state
-  const [kycForm, setKycForm] = useState({
-    idType: 'Aadhaar Card',
-    idNumber: '',
-    documentFront: '',
-    documentBack: '',
-    drivingLicense: '',
-    vehicleRegistrationRc: '',
-  });
-
-  const fetchOwnerData = async () => {
-    setLoading(true);
+  // Fetch Owner's Cars and Bookings
+  const fetchDashboardData = async () => {
     try {
-      // 1. Dashboard metrics (filtered to current owner)
-      const dashRes = await fetch('/api/owners/dashboard', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const dashData = await dashRes.json();
-      if (dashData.success) {
-        setStats(dashData.stats);
-        setKycInfo(dashData.kyc);
-        if (dashData.profile) setOwnerProfile(dashData.profile);
+      setLoading(true);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [carsRes, bookingsRes] = await Promise.all([
+        fetch('/api/cars/my-fleet', { headers }),
+        fetch('/api/bookings/owner-bookings', { headers }),
+      ]);
+
+      const carsData = await carsRes.json();
+      const bookingsData = await bookingsRes.json();
+
+      if (carsData.success) {
+        setMyFleet(carsData.cars || []);
       }
-
-      // 2. My Fleet (filtered to current owner's cars)
-      const fleetRes = await fetch('/api/cars/my-fleet', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const fleetData = await fleetRes.json();
-      if (fleetData.success) setMyFleet(fleetData.cars || []);
-
-      // 3. Bookings (filtered to current owner)
-      const bkRes = await fetch('/api/bookings/owner-bookings', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const bkData = await bkRes.json();
-      if (bkData.success) setOwnerBookings(bkData.bookings || []);
-
-      // 4. Offers (filtered to current owner)
-      const offRes = await fetch('/api/offers/owner-offers', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const offData = await offRes.json();
-      if (offData.success) setOwnerOffers(offData.offers || []);
+      if (bookingsData.success) {
+        setOwnerBookings(bookingsData.bookings || []);
+      }
     } catch (err) {
-      console.error('Owner dashboard fetch error:', err);
+      showToast('डेटा लोड करने में समस्या आई (Failed to load data)', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token) fetchOwnerData();
+    if (token) {
+      fetchDashboardData();
+    }
   }, [token]);
 
-  // Handle Verify OTP & Start Ride
-  const handleVerifyStartOtp = async (e) => {
-    e.preventDefault();
-    if (!selectedBookingForOtp || !otpInput) return;
-    try {
-      const res = await fetch(`/api/bookings/${selectedBookingForOtp._id}/start-ride`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ otp: otpInput.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('OTP verified! Trip is now officially IN PROGRESS.', 'success');
-        setOtpModalOpen(false);
-        setOtpInput('');
-        fetchOwnerData();
-      } else {
-        showToast(data.message || 'Invalid OTP', 'error');
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Handle Complete Ride & Collect Balance
-  const handleCompleteRide = async (e) => {
-    e.preventDefault();
-    if (!selectedBookingForComplete) return;
-    try {
-      const res = await fetch(`/api/bookings/${selectedBookingForComplete._id}/complete-ride`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          remainingCollected: Number(collectedAmount),
-          paymentMethod: completeMethod,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Trip marked COMPLETED and balance collected. Earnings credited to your wallet!', 'success');
-        setCompleteModalOpen(false);
-        fetchOwnerData();
-      } else {
-        showToast(data.message, 'error');
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Handle Assign Chauffeur
-  const handleAssignChauffeur = async (e) => {
-    e.preventDefault();
-    if (!selectedBookingForChauffeur) return;
-    try {
-      const res = await fetch(`/api/bookings/${selectedBookingForChauffeur._id}/chauffeur`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(chauffeurForm),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Chauffeur & vehicle details assigned and synced with customer pass!', 'success');
-        setChauffeurModalOpen(false);
-        fetchOwnerData();
-      } else {
-        showToast(data.message, 'error');
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Handle Request Payout
-  const handleRequestPayout = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/owners/payout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          amount: Number(payoutForm.amount),
-          method: payoutForm.method,
-          upiId: payoutForm.upiId,
-          bankDetails: {
-            accountNumber: payoutForm.accountNo,
-            ifsc: payoutForm.ifsc,
-            bankName: payoutForm.bankName,
-            accountHolderName: payoutForm.holderName,
-          },
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, 'success');
-        setPayoutModalOpen(false);
-        fetchOwnerData();
-      } else {
-        showToast(data.message, 'error');
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Handle direct file upload for car photos
-  const handleFileUpload = async (e, fieldName, targetFormSetter) => {
+  // Handle Photo Upload
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (fieldName === 'mainImage') setUploadingMain(true);
-    else setUploadingInterior(true);
-
+    setUploadingImage(true);
     try {
-      const result = await uploadSingleFile(file, token);
-      if (result && result.url) {
-        targetFormSetter((prev) => ({
-          ...prev,
-          [fieldName]: result.url,
-        }));
-        showToast('Photo uploaded successfully from device!', 'success');
-      } else {
-        showToast('Photo upload could not be completed. Please try again.', 'error');
-      }
+      const uploadedUrl = await uploadSingleFile(file, token);
+      setCarForm((prev) => ({ ...prev, mainImage: uploadedUrl }));
+      showToast('फोटो सफलतापूर्वक अपलोड हो गई! (Photo uploaded)', 'success');
     } catch (err) {
-      showToast('Upload error: ' + (err.message || 'File upload failed'), 'error');
+      showToast(err.message || 'फोटो अपलोड नहीं हो पाई (Upload failed)', 'error');
     } finally {
-      if (fieldName === 'mainImage') setUploadingMain(false);
-      else setUploadingInterior(false);
+      setUploadingImage(false);
     }
   };
 
-  // Booking Status (Accept / Reject / Complete)
-  const handleUpdateBookingStatus = async (bookingId, status) => {
+  // Open Add Car Modal
+  const handleOpenAddCar = () => {
+    setIsEditing(false);
+    setEditingCarId(null);
+    setCarForm(initialCarForm);
+    setCarModalOpen(true);
+  };
+
+  // Open Edit Car Modal
+  const handleOpenEditCar = (car) => {
+    setIsEditing(true);
+    setEditingCarId(car._id);
+    setCarForm({
+      name: car.name || '',
+      brand: car.brand || 'Standard',
+      model: car.model || '2024',
+      perKm: car.pricing?.perKm || car.pricing?.extraKmRate || 20,
+      locationAddress: car.location?.address || car.location?.city || '',
+      fuelIncluded: car.fuelIncluded !== undefined ? car.fuelIncluded : true,
+      seatingCapacity: car.seatingCapacity || 5,
+      fuelType: car.fuelType || 'Diesel',
+      mainImage: car.images?.main || '',
+      description: car.description || '',
+      paymentMethods: car.paymentMethods?.length ? car.paymentMethods : ['cod', 'online'],
+    });
+    setCarModalOpen(true);
+  };
+
+  // Save Car (Add or Edit)
+  const handleSaveCar = async (e) => {
+    e.preventDefault();
+    if (!carForm.name.trim()) {
+      showToast('कृपया गाड़ी का नाम भरें (Please enter car name)', 'error');
+      return;
+    }
+    if (!carForm.locationAddress.trim()) {
+      showToast('गाड़ी कहाँ उपलब्ध है, वह जगह भरें (Please enter location)', 'error');
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/bookings/${bookingId}/status`, {
-        method: 'PUT',
+      const payload = {
+        name: carForm.name.trim(),
+        brand: carForm.brand.trim() || 'Standard',
+        model: carForm.model.trim() || '2024',
+        perKm: Number(carForm.perKm) || 20,
+        pricing: {
+          perKm: Number(carForm.perKm) || 20,
+          extraKmRate: Number(carForm.perKm) || 20,
+          perDay: (Number(carForm.perKm) || 20) * 100,
+          basePrice: (Number(carForm.perKm) || 20) * 50,
+        },
+        location: {
+          address: carForm.locationAddress.trim(),
+          city: carForm.locationAddress.trim(),
+          type: 'Point',
+          coordinates: [83.7784, 26.5024],
+        },
+        address: carForm.locationAddress.trim(),
+        city: carForm.locationAddress.trim(),
+        fuelIncluded: Boolean(carForm.fuelIncluded),
+        seatingCapacity: Number(carForm.seatingCapacity) || 5,
+        fuelType: carForm.fuelType || 'Diesel',
+        mainImage: carForm.mainImage.trim() || '/brand/ras-logo-primary.svg',
+        images: {
+          main: carForm.mainImage.trim() || '/brand/ras-logo-primary.svg',
+        },
+        description: carForm.description.trim() || 'Well maintained, verified chauffeur driven vehicle.',
+        paymentMethods: carForm.paymentMethods.length ? carForm.paymentMethods : ['cod', 'online'],
+      };
+
+      const url = isEditing ? `/api/cars/${editingCarId}` : '/api/cars';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`Booking marked as ${status}`, 'success');
-        fetchOwnerData();
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
 
-  // Payment Verification & Order Confirmation
-  const handleVerifyPayment = async (bookingId, action = 'verify') => {
-    try {
-      const res = await fetch(`/api/bookings/${bookingId}/verify-payment`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action }),
-      });
       const data = await res.json();
       if (data.success) {
-        if (action === 'verify') {
-          showToast('Payment verified & booking confirmed! Start Ride OTP sent to customer.', 'success');
-        } else {
-          showToast('Payment marked as mismatch / rejected.', 'error');
-        }
-        setReceiptModalOpen(false);
-        fetchOwnerData();
+        showToast(
+          isEditing ? 'गाड़ी की जानकारी अपडेट हो गई! (Car updated)' : 'नई गाड़ी सफलतापूर्वक जुड़ गई! (Car added)',
+          'success'
+        );
+        setCarModalOpen(false);
+        fetchDashboardData();
       } else {
-        showToast(data.message || 'Verification failed', 'error');
-      }
-    } catch (err) {
-      showToast(err.message || 'Error updating payment status', 'error');
-    }
-  };
-
-  // Offer Response (Accept / Counter / Reject)
-  const handleRespondOffer = async (offerId, action, customCounter) => {
-    try {
-      const res = await fetch(`/api/offers/${offerId}/respond`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          action,
-          counterAmount: customCounter,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`Offer ${action}ed successfully`, 'success');
-        setCounterModalOpen(false);
-        fetchOwnerData();
+        showToast(data.message || 'गाड़ी सेव नहीं हो सकी (Save failed)', 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
     }
   };
 
-  // Handle Toggle Custom Date Availability
-  const handleToggleCarDate = async (carId, dateStr) => {
+  // Delete Car
+  const handleDeleteCar = async (carId, carName) => {
+    if (!window.confirm(`क्या आप सच में "${carName}" को हटाना चाहते हैं? (Delete this car?)`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/cars/${carId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('गाड़ी लिस्ट से हटा दी गई (Car removed)', 'success');
+        setMyFleet((prev) => prev.filter((c) => c._id !== carId));
+      } else {
+        showToast(data.message || 'गाड़ी नहीं हट सकी', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Toggle Custom Date Availability
+  const handleToggleDate = async (carId, dateStr) => {
     if (!dateStr) return;
     try {
       const res = await fetch(`/api/cars/${carId}/toggle-date`, {
@@ -425,851 +267,626 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
       const data = await res.json();
       if (data.success) {
         showToast(data.message, 'success');
+        // Update local state
+        setMyFleet((prev) =>
+          prev.map((c) => (c._id === carId ? { ...c, unavailableDates: data.unavailableDates } : c))
+        );
         if (selectedCarForDates && selectedCarForDates._id === carId) {
-          setSelectedCarForDates((prev) => ({
-            ...prev,
-            unavailableDates: data.unavailableDates,
-          }));
+          setSelectedCarForDates((prev) => ({ ...prev, unavailableDates: data.unavailableDates }));
         }
-        setCustomDateToBlock('');
-        fetchOwnerData();
+        setDateToBlock('');
       } else {
-        showToast(data.message || 'Failed to update date availability', 'error');
+        showToast(data.message || 'तारीख अपडेट नहीं हो सकी', 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
     }
   };
 
-  // Add Car Submission
-  const handleAddCarSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/cars', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: carForm.name,
-          brand: carForm.brand || 'Standard',
-          model: carForm.model || carForm.name,
-          variant: carForm.variant || '',
-          year: Number(carForm.year) || 2024,
-          color: carForm.color || 'White',
-          seatingCapacity: Number(carForm.seatingCapacity) || 5,
-          fuelType: carForm.fuelType || 'Diesel',
-          fuelIncluded: carForm.fuelIncluded !== false,
-          paymentMethods: carForm.paymentMethods || ['cod', 'online'],
-          transmission: carForm.transmission || 'Manual',
-          isAC: carForm.isAC !== false,
-          category: carForm.category || 'Sedan',
-          description: carForm.description || 'Well maintained, verified chauffeur driven vehicle.',
-          images: {
-            main: carForm.mainImage || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
-            interior: carForm.interiorImage || '',
-          },
-          pricing: {
-            perKm: Number(carForm.perKm || 20),
-            basePrice: Number(carForm.basePrice || 1000),
-            perHour: Number(carForm.perHour || 800),
-            perDay: Number(carForm.perDay || 2000),
-            extraKmRate: Number(carForm.perKm || 20),
-            driverCharges: Number(carForm.driverCharges || 0),
-            nightCharges: Number(carForm.nightCharges || 300),
-            decorationCharges: Number(carForm.decorationCharges || 0),
-          },
-          advancePayment: {
-            type: carForm.advanceType || 'percentage',
-            value: Number(carForm.advanceValue || 20),
-          },
-          weddingSpecial: carForm.weddingSpecial || false,
-          address: carForm.address || 'Delhi NCR',
-          city: carForm.city || 'Delhi NCR',
-          serviceRadiusKm: Number(carForm.serviceRadiusKm || 100),
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        showToast('Vehicle listed successfully on RAS Brother Tour & Travels!', 'success');
-        setActiveTab('fleet');
-        fetchOwnerData();
-      } else {
-        showToast(data.message, 'error');
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
+  // Accept / Reject Booking
+  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
+    const actionText = newStatus === 'confirmed' ? 'स्वीकार (Accept)' : 'रद्द (Cancel)';
+    if (!window.confirm(`क्या आप इस बुकिंग को ${actionText} करना चाहते हैं?`)) {
+      return;
     }
-  };
-
-  // Open Edit Car Modal
-  const handleOpenEditCar = (car) => {
-    setEditingCar({
-      _id: car._id,
-      name: car.name,
-      brand: car.brand || 'Standard',
-      model: car.model || car.name,
-      variant: car.variant || '',
-      year: car.year || 2024,
-      color: car.color || 'White',
-      seatingCapacity: car.seatingCapacity || 5,
-      fuelType: car.fuelType || 'Diesel',
-      fuelIncluded: car.fuelIncluded !== false,
-      paymentMethods: car.paymentMethods || ['cod', 'online'],
-      transmission: car.transmission || 'Manual',
-      isAC: car.isAC !== false,
-      category: car.category || 'Sedan',
-      description: car.description || '',
-      mainImage: car.images?.main || '',
-      interiorImage: car.images?.interior || '',
-      perKm: car.pricing?.perKm || 20,
-      perDay: car.pricing?.perDay || car.pricing?.basePrice || 2000,
-      driverCharges: car.pricing?.driverCharges || 0,
-      decorationCharges: car.pricing?.decorationCharges || 0,
-      extraKmRate: car.pricing?.perKm || 20,
-      advanceType: car.advancePayment?.type || 'percentage',
-      advanceValue: car.advancePayment?.value || 20,
-      address: car.location?.address || 'Delhi NCR',
-      city: car.location?.city || 'Delhi NCR',
-      serviceRadiusKm: car.serviceRadiusKm || 100,
-      isAvailable: car.isAvailable !== false,
-      weddingSpecial: car.weddingSpecial || false,
-    });
-    setEditModalOpen(true);
-  };
-
-  // Submit Edit Car
-  const handleSaveEditCar = async (e) => {
-    e.preventDefault();
-    if (!editingCar) return;
 
     try {
-      const res = await fetch(`/api/cars/${editingCar._id}`, {
+      const res = await fetch(`/api/bookings/${bookingId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: editingCar.name,
-          brand: editingCar.brand,
-          model: editingCar.model,
-          variant: editingCar.variant,
-          year: Number(editingCar.year),
-          color: editingCar.color,
-          seatingCapacity: Number(editingCar.seatingCapacity),
-          fuelType: editingCar.fuelType,
-          fuelIncluded: editingCar.fuelIncluded !== false,
-          paymentMethods: editingCar.paymentMethods || ['cod', 'online'],
-          transmission: editingCar.transmission,
-          isAC: editingCar.isAC,
-          category: editingCar.category,
-          description: editingCar.description,
-          images: {
-            main: editingCar.mainImage,
-            interior: editingCar.interiorImage,
-          },
-          pricing: {
-            perKm: Number(editingCar.perKm || 20),
-            basePrice: Number(editingCar.perDay || 1000),
-            perDay: Number(editingCar.perDay || 2000),
-            extraKmRate: Number(editingCar.perKm || 20),
-            driverCharges: Number(editingCar.driverCharges || 0),
-            decorationCharges: Number(editingCar.decorationCharges || 0),
-          },
-          advancePayment: {
-            type: editingCar.advanceType,
-            value: Number(editingCar.advanceValue),
-          },
-          address: editingCar.address,
-          city: editingCar.city,
-          serviceRadiusKm: Number(editingCar.serviceRadiusKm || 100),
-          isAvailable: editingCar.isAvailable,
-          weddingSpecial: editingCar.weddingSpecial,
+          status: newStatus,
+          cancellationReason: newStatus === 'cancelled' ? 'गाड़ी मालिक द्वारा मना किया गया' : undefined,
         }),
       });
-
       const data = await res.json();
       if (data.success) {
-        showToast('Vehicle details updated successfully!', 'success');
-        setEditModalOpen(false);
-        fetchOwnerData();
+        showToast(`बुकिंग ${actionText} हो गई!`, 'success');
+        fetchDashboardData();
       } else {
-        showToast(data.message, 'error');
+        showToast(data.message || 'स्टेटस अपडेट नहीं हो सका', 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
     }
   };
 
-  // KYC Submit
-  const handleKycSubmit = async (e) => {
+  // Start Ride with OTP
+  const handleVerifyOtpAndStartRide = async (e) => {
     e.preventDefault();
+    if (!otpInput.trim()) {
+      showToast('कृपया ग्राहक से पूछकर 4 अंकों का OTP डालें', 'error');
+      return;
+    }
+
     try {
-      const res = await fetch('/api/owners/kyc', {
-        method: 'POST',
+      const res = await fetch(`/api/bookings/${selectedBookingForOtp._id}/start-ride`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(kycForm),
+        body: JSON.stringify({ otp: otpInput.trim() }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast('KYC documents submitted for admin verification!', 'success');
-        fetchOwnerData();
+        showToast('सत्यापन सफल! राइड शुरू हो गई है। (Ride Started!)', 'success');
+        setOtpModalOpen(false);
+        setOtpInput('');
+        fetchDashboardData();
       } else {
-        showToast(data.message, 'error');
+        showToast(data.message || 'गलत OTP! कृपया ग्राहक से सही OTP पूछें।', 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
     }
   };
 
+  // Complete Ride
+  const handleCompleteRide = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/bookings/${selectedBookingForComplete._id}/complete-ride`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ collectionMethod }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('सफ़र सफलतापूर्वक पूरा हो गया! (Ride Completed)', 'success');
+        setCompleteModalOpen(false);
+        fetchDashboardData();
+      } else {
+        showToast(data.message || 'राइड पूरी नहीं हो सकी', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Filter Bookings
+  const filteredBookings = ownerBookings.filter((b) => {
+    if (bookingFilter === 'all') return true;
+    return b.status === bookingFilter;
+  });
+
   return (
-    <div className="min-h-screen bg-slate-50 py-6 sm:py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Fleet Owner Portal Top Bar (clean replacement for global navbar) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:px-6 rounded-2xl border border-slate-200 shadow-sm">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
+      {/* Top Header - Simple & Clean */}
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-lg">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <RasLogo variant="light" size="sm" showTagline={false} />
-            <div className="h-5 w-px bg-slate-200" />
-            <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Fleet Owner Console
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            {onNavigate && (
-              <button
-                type="button"
-                onClick={() => onNavigate('cars')}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
-              >
-                <Car className="w-3.5 h-3.5" /> View Marketplace Fleet
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onLogout}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
-            >
-              <LogOut className="w-3.5 h-3.5" /> Logout
-            </button>
-          </div>
-        </div>
-
-        {/* Top Header Banner */}
-        <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-2xl flex items-center justify-center shrink-0">
-              {user?.name?.charAt(0) || 'V'}
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black">
+              <Car className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-                Fleet Owner Console
-                {kycInfo?.status === 'verified' && (
-                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">
-                    KYC Verified
-                  </span>
-                )}
-              </div>
-              <h1 className="text-2xl font-black font-heading">{user?.name}</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Managing {myFleet.length} vehicles • {ownerBookings.length} bookings received
+              <h1 className="text-lg sm:text-xl font-black text-white font-heading flex items-center gap-2">
+                कार मालिक पोर्टल <span className="text-xs text-amber-400 font-normal hidden sm:inline">(Car Owner Panel)</span>
+              </h1>
+              <p className="text-xs text-slate-400">
+                नमस्ते, <span className="font-bold text-amber-300">{user?.name || 'Car Owner'}</span> {user?.phone ? `• 📞 ${user.phone}` : ''}
               </p>
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none w-full md:w-auto">
-            {[
-              { id: 'overview', label: 'My Overview' },
-              { id: 'fleet', label: `My Fleet (${myFleet.length})` },
-              { id: 'bookings', label: `Bookings (${ownerBookings.length})` },
-              { id: 'wallet', label: 'Wallet & Payouts' },
-              { id: 'offers', label: `Negotiations (${ownerOffers.length})` },
-              { id: 'kyc', label: 'KYC Document' },
-              { id: 'add-car', label: '+ List Car', highlight: true },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3.5 sm:px-4 py-2 rounded-2xl text-xs font-bold transition shrink-0 whitespace-nowrap ${
-                  tab.highlight
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-md'
-                    : activeTab === tab.id
-                    ? 'bg-white text-slate-950 font-black'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenAddCar}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition transform active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ नई गाड़ी जोड़ें</span>
+            </button>
+            <button
+              onClick={onLogout}
+              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition"
+              title="लॉगआउट (Logout)"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        {/* Tab 1: Overview (Only owner's data) */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-                <div className="text-xs font-bold text-slate-500 uppercase">My Total Earnings</div>
-                <div className="text-2xl font-black text-emerald-600 font-heading mt-1">
-                  ₹{stats?.totalEarnings?.toLocaleString('en-IN') || 0}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">From your completed car trips</div>
-              </div>
+        {/* 2 MAIN TABS - Simple Big Buttons */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-2 gap-2 pb-3 pt-1">
+            <button
+              onClick={() => setActiveTab('cars')}
+              className={`py-3 px-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 transition border ${
+                activeTab === 'cars'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
+                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              <Car className="w-5 h-5" />
+              <span>मेरी गाड़ियाँ (My Cars)</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  activeTab === 'cars' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
+                }`}
+              >
+                {myFleet.length}
+              </span>
+            </button>
 
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-                <div className="text-xs font-bold text-slate-500 uppercase">Confirmed Bookings</div>
-                <div className="text-2xl font-black text-slate-900 font-heading mt-1">
-                  {stats?.confirmedBookings || 0}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">Reserved on your fleet</div>
-              </div>
-
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-                <div className="text-xs font-bold text-slate-500 uppercase">Pending Requests</div>
-                <div className="text-2xl font-black text-amber-600 font-heading mt-1">
-                  {stats?.pendingBookings || 0}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">Awaiting your approval</div>
-              </div>
-
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-                <div className="text-xs font-bold text-slate-500 uppercase">Fleet Rating</div>
-                <div className="text-2xl font-black text-amber-500 font-heading mt-1 flex items-center gap-1">
-                  ★ {stats?.rating || '4.9'}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">From {stats?.totalReviews || 0} reviews</div>
-              </div>
-            </div>
-
-            {/* Quick Actions & Recent Bookings */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-black text-slate-900 font-heading">
-                  Recent Booking Requests for Your Cars
-                </h2>
-                <button
-                  onClick={() => setActiveTab('fleet')}
-                  className="text-xs text-amber-600 font-bold hover:underline"
-                >
-                  View All Fleet
-                </button>
-              </div>
-
-              {ownerBookings.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No bookings received yet. Your listings are live on the marketplace.
-                </div>
-              ) : (
-                ownerBookings.slice(0, 5).map((b) => (
-                  <div
-                    key={b._id}
-                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs"
-                  >
-                    <div className="flex items-center gap-4">
-                      <img
-                        src={b.car?.images?.main}
-                        alt={b.car?.name}
-                        className="w-16 h-12 rounded-xl object-cover shrink-0"
-                      />
-                      <div>
-                        <div className="font-extrabold text-sm text-slate-900">
-                          {b.car?.brand} {b.car?.name}
-                        </div>
-                        <div className="text-slate-500 mt-0.5">
-                          Client: {b.offlineCustomer?.name || b.customer?.name} ({b.offlineCustomer?.phone || b.customer?.phone}) • Event: {b.eventType}
-                        </div>
-                        <div className="text-slate-600 font-semibold mt-0.5">
-                          {new Date(b.startDate).toLocaleDateString()} to {new Date(b.endDate).toLocaleDateString()} • ₹{b.pricing?.totalAmount?.toLocaleString('en-IN')} Total
-                        </div>
-                        {b.distanceKm > 0 && (
-                          <div className="text-amber-700 font-bold text-[11px]">
-                            Route Distance: {b.distanceKm} KM ({b.pickupLocation?.address} → {b.destinationAddress})
-                          </div>
-                        )}
-                        {(b.paymentScreenshot || b.utrNumber || b.paymentVerificationStatus === 'pending_verification') && (
-                          <div className="mt-1 flex items-center gap-2 text-[11px]">
-                            <span className={`font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                              b.paymentVerificationStatus === 'verified'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : b.paymentVerificationStatus === 'rejected'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-amber-100 text-amber-800 animate-pulse'
-                            }`}>
-                              <QrCode className="w-3 h-3" /> UTR: {b.utrNumber || 'Uploaded'}
-                            </span>
-                            {b.paymentScreenshot && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setViewingReceipt({ screenshot: b.paymentScreenshot, utr: b.utrNumber, booking: b });
-                                  setReceiptModalOpen(true);
-                                }}
-                                className="text-amber-700 font-extrabold hover:underline flex items-center gap-0.5"
-                              >
-                                <Eye className="w-3 h-3" /> View Receipt
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      {(b.status === 'pending' || b.paymentVerificationStatus === 'pending_verification') && (
-                        <>
-                          <button
-                            onClick={() => handleVerifyPayment(b._id, 'verify')}
-                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-sm"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Match &amp; Confirm
-                          </button>
-                          <button
-                            onClick={() => handleVerifyPayment(b._id, 'reject')}
-                            className="px-3.5 py-1.5 rounded-xl bg-red-100 text-red-800 font-bold hover:bg-red-200"
-                          >
-                            Decline
-                          </button>
-                        </>
-                      )}
-                      {b.status === 'confirmed' && (
-                        <button
-                          onClick={() => handleUpdateBookingStatus(b._id, 'completed')}
-                          className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700"
-                        >
-                          Mark Completed
-                        </button>
-                      )}
-                      <span className="capitalize font-mono font-bold px-2 py-1 bg-slate-200 rounded-lg">
-                        {b.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <button
+              onClick={() => setActiveTab('bookings')}
+              className={`py-3 px-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 transition border ${
+                activeTab === 'bookings'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
+                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span>मेरी बुकिंग (My Bookings)</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  activeTab === 'bookings' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
+                }`}
+              >
+                {ownerBookings.length}
+              </span>
+            </button>
           </div>
-        )}
+        </div>
+      </header>
 
-        {/* Tab 2: My Fleet (With EDIT & DIRECT BOOKING options) */}
-        {activeTab === 'fleet' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+      {/* Main Content Area */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+        {loading ? (
+          <div className="py-20 text-center space-y-3">
+            <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="text-slate-400 text-sm font-semibold">गाड़ियाँ और बुकिंग लोड हो रही हैं...</p>
+          </div>
+        ) : activeTab === 'cars' ? (
+          /* ========================================================= */
+          /* TAB 1: मेरी गाड़ियाँ (MY CARS)                            */
+          /* ========================================================= */
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 p-4 rounded-2xl border border-slate-800">
               <div>
-                <h2 className="text-lg font-black text-slate-900 font-heading">
-                  Your Cars ({myFleet.length})
+                <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  <span>🚗 आपकी लिस्ट की गई गाड़ियाँ</span>
+                  <span className="text-xs text-slate-400 font-normal">({myFleet.length} Cars Available)</span>
                 </h2>
-                <p className="text-xs text-slate-500">Edit specs, rates, photos, or book directly for offline clients.</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  यहाँ से आप अपनी गाड़ी का किराया, तेल की शर्त, या किसी तारीख को बंद/चालू कर सकते हैं।
+                </p>
               </div>
               <button
-                onClick={() => setActiveTab('add-car')}
-                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md"
+                onClick={handleOpenAddCar}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition"
               >
-                <Plus className="w-4 h-4" /> Add Another Car
+                <Plus className="w-4 h-4" />
+                <span>+ नई गाड़ी जोड़ें</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {myFleet.map((c) => (
-                <div
-                  key={c._id}
-                  className="bg-white rounded-3xl p-5 border border-slate-200 shadow-md space-y-3 flex flex-col justify-between"
+            {myFleet.length === 0 ? (
+              <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-3xl p-10 text-center space-y-4">
+                <div className="w-16 h-16 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto">
+                  <Car className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black text-white">अभी तक कोई गाड़ी नहीं जोड़ी गई है</h3>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    ग्राहकों से बुकिंग पाने के लिए अपनी गाड़ी का नाम, प्रति किलोमीटर रेट और जगह डालकर लिस्ट करें।
+                  </p>
+                </div>
+                <button
+                  onClick={handleOpenAddCar}
+                  className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm rounded-2xl shadow-xl hover:from-amber-400 transition"
                 >
-                  <div>
-                    <div className="relative rounded-2xl overflow-hidden aspect-[16/10] bg-slate-100 mb-3">
-                      <img
-                        src={c.images?.main}
-                        alt={c.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <span className="absolute top-2 left-2 bg-slate-950/80 text-amber-400 text-[10px] font-black uppercase px-2.5 py-1 rounded-full">
-                        {c.category}
-                      </span>
-                      <span className={`absolute top-2 right-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        c.isAvailable ? 'bg-emerald-500 text-slate-950' : 'bg-red-500 text-white'
-                      }`}>
-                        {c.isAvailable ? 'Available' : 'Booked / Off'}
-                      </span>
-                    </div>
+                  + पहली गाड़ी जोड़ें (Add Your First Car)
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {myFleet.map((car) => {
+                  const rate = car.pricing?.perKm || car.pricing?.extraKmRate || 20;
+                  const blockedCount = car.unavailableDates?.length || 0;
+                  const mainImg = car.images?.main || '/brand/ras-logo-primary.svg';
 
-                    <h4 className="font-extrabold text-base text-slate-900">{c.brand} {c.name}</h4>
-                    <p className="text-xs text-slate-500">{c.year} • {c.fuelType} • {c.transmission} • {c.seatingCapacity} Seats</p>
+                  return (
+                    <div
+                      key={car._id}
+                      className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-slate-700 transition"
+                    >
+                      {/* Car Image + Badges */}
+                      <div className="relative h-44 bg-slate-950">
+                        <img
+                          src={mainImg}
+                          alt={car.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/brand/ras-logo-primary.svg';
+                          }}
+                        />
+                        <div className="absolute top-3 left-3 bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-black text-amber-400 border border-slate-800">
+                          ₹{rate}/km
+                        </div>
 
-                    <div className="mt-3 p-2.5 rounded-xl bg-slate-50 text-xs flex justify-between font-bold text-slate-800">
-                      <div>
-                        <div className="text-[10px] text-slate-400 uppercase">Rate</div>
-                        <div className="text-sm font-black text-slate-900">₹{c.pricing?.perKm || 20}/km</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] text-slate-400 uppercase">Fuel Status</div>
-                        <div className="text-[11px] font-bold">
-                          {c.fuelIncluded !== false ? (
-                            <span className="text-emerald-700">🟢 Fuel Included</span>
+                        {/* Fuel Option Badge */}
+                        <div className="absolute top-3 right-3">
+                          {car.fuelIncluded ? (
+                            <span className="bg-emerald-950/90 text-emerald-400 border border-emerald-800/80 px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 shadow">
+                              <Fuel className="w-3 h-3" /> तेल गाड़ी का (Fuel Included)
+                            </span>
                           ) : (
-                            <span className="text-amber-700">⛽ Fuel Extra</span>
+                            <span className="bg-rose-950/90 text-rose-300 border border-rose-800/80 px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 shadow">
+                              <Fuel className="w-3 h-3" /> तेल ग्राहक का (Fuel Extra)
+                            </span>
                           )}
+                        </div>
+
+                        {blockedCount > 0 && (
+                          <div className="absolute bottom-3 left-3 bg-rose-600 text-white px-2.5 py-0.5 rounded-lg text-[10px] font-black shadow">
+                            ⛔ {blockedCount} तारीख बंद है (Unavailable)
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Car Info */}
+                      <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-base sm:text-lg font-black text-white">{car.name}</h3>
+                            <span className="text-[11px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded-lg font-semibold">
+                              {car.brand || 'Standard'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-2">
+                            <MapPin className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span className="font-semibold truncate">
+                              {car.location?.address || car.location?.city || 'Deoria'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-slate-400 mt-2 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5 text-slate-400" /> {car.seatingCapacity || 5} सीटें
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Fuel className="w-3.5 h-3.5 text-slate-400" /> {car.fuelType || 'Diesel'}
+                            </span>
+                          </div>
+
+                          {car.description && (
+                            <p className="text-xs text-slate-400 mt-2 line-clamp-2 bg-slate-950/50 p-2 rounded-xl border border-slate-800/80">
+                              {car.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-3 border-t border-slate-800 space-y-2">
+                          <button
+                            onClick={() => {
+                              setSelectedCarForDates(car);
+                              setDateModalOpen(true);
+                            }}
+                            className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 transition"
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>📅 तारीख बंद / खोलें (Manage Dates)</span>
+                          </button>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleOpenEditCar(car)}
+                              className="py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-blue-500/30 transition"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              <span>बदलें (Edit)</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCar(car._id, car.name)}
+                              className="py-2 px-3 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-rose-500/30 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>हटाएं (Delete)</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-
-                    <div className="mt-2 text-xs text-slate-500 flex items-center gap-1 truncate">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{c.location?.address || 'Delhi NCR'}</span>
-                    </div>
-
-                    {c.unavailableDates && c.unavailableDates.length > 0 && (
-                      <div className="mt-1 text-[11px] font-semibold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200">
-                        ⛔ {c.unavailableDates.length} Custom Date(s) Blocked
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions: Edit Car, Date Availability & Direct Book */}
-                  <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-1.5">
-                    <button
-                      onClick={() => {
-                        setSelectedCarForDates(c);
-                        setDateModalOpen(true);
-                      }}
-                      className="flex-1 min-w-[100px] py-2 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 text-amber-400 flex items-center justify-center gap-1 transition"
-                      title="Set custom dates when this car is NOT available"
-                    >
-                      <Calendar className="w-3.5 h-3.5" /> Block Dates
-                    </button>
-
-                    <button
-                      onClick={() => handleOpenEditCar(c)}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center gap-1 transition"
-                    >
-                      <Edit className="w-3.5 h-3.5" /> Edit
-                    </button>
-
-                    {onOpenDirectBooking && (
-                      <button
-                        onClick={() => onOpenDirectBooking(c)}
-                        className="px-3 py-2 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center justify-center gap-1 transition shadow-sm"
-                        title="Book directly for walk-in/offline customer"
-                      >
-                        <UserCheck className="w-3.5 h-3.5" /> Walk-In
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-
-        {/* Tab: Fleet Bookings & Ride Management */}
-        {activeTab === 'bookings' && (
+        ) : (
+          /* ========================================================= */
+          /* TAB 2: मेरी बुकिंग (MY BOOKINGS)                          */
+          /* ========================================================= */
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Filter Bar */}
+            <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black text-slate-900 font-heading">
-                  Manage Fleet Bookings &amp; Security Trips ({ownerBookings.length})
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Verify Start Ride OTPs, assign chauffeurs, track routes, and collect remaining balances.
+                <h2 className="text-base sm:text-lg font-black text-white">गाड़ियों की बुकिंग (Bookings)</h2>
+                <p className="text-xs text-slate-400">ग्राहकों की सभी बुकिंग और फोन नंबर यहाँ देखें।</p>
+              </div>
+
+              {/* Status Filter Buttons */}
+              <div className="flex flex-wrap gap-1.5 text-xs font-bold">
+                {[
+                  { id: 'all', label: 'सभी (All)' },
+                  { id: 'pending', label: 'नई बुकिंग (New)' },
+                  { id: 'confirmed', label: 'कन्फर्म (Confirmed)' },
+                  { id: 'in_progress', label: 'चालू राइड (On Going)' },
+                  { id: 'completed', label: 'पूरी हुई (Done)' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setBookingFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-xl transition ${
+                      bookingFilter === f.id
+                        ? 'bg-amber-500 text-slate-950 font-black'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {filteredBookings.length === 0 ? (
+              <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-3xl p-10 text-center space-y-3">
+                <Calendar className="w-12 h-12 text-slate-500 mx-auto" />
+                <h3 className="text-base sm:text-lg font-black text-white">कोई बुकिंग नहीं मिली</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  जैसे ही कोई ग्राहक आपकी गाड़ी बुक करेगा, उसकी पूरी जानकारी और मोबाइल नंबर यहाँ दिखेगा।
                 </p>
               </div>
-            </div>
-
-            {ownerBookings.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center text-xs text-slate-400 border border-slate-200">
-                <Car className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-slate-800">No bookings received yet</h3>
-                <p className="text-xs text-slate-500 mt-1">Bookings for your cars will appear here with OTP verification.</p>
-              </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {ownerBookings.map((b) => {
-                  const customerName = b.offlineCustomer?.name || b.customer?.name || 'Valued Guest';
-                  const customerPhone = b.offlineCustomer?.phone || b.customer?.phone || '';
-                  const total = b.pricing?.totalAmount || 0;
-                  const advance = b.pricing?.advanceAmount || 0;
-                  const remaining = b.pricing?.remainingAmount || 0;
+              <div className="space-y-4">
+                {filteredBookings.map((b) => {
+                  const customerName = b.customer?.name || b.offlineCustomer?.name || 'Customer';
+                  const customerPhone = b.customer?.phone || b.offlineCustomer?.phone || '';
+                  const totalAmt = b.pricing?.totalAmount || 0;
+                  const advanceAmt = b.pricing?.advanceAmount || 0;
+                  const remainingAmt = b.pricing?.remainingAmount || Math.max(0, totalAmt - advanceAmt);
+
+                  const dateFormatted = b.startDate
+                    ? new Date(b.startDate).toLocaleDateString('hi-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : 'तारीख तय नहीं';
 
                   return (
                     <div
                       key={b._id}
-                      className="bg-white rounded-3xl p-6 border border-slate-200 shadow-md space-y-4 flex flex-col justify-between"
+                      className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4 hover:border-slate-700 transition"
                     >
-                      <div className="space-y-4">
-                        {/* Top Bar */}
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-slate-500">
-                              #{b.bookingId}
-                            </span>
-                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                              {b.eventType}
-                            </span>
-                          </div>
-                          <span
-                            className={`text-xs font-black uppercase px-3 py-1 rounded-full ${
-                              b.status === 'confirmed'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : b.status === 'in_progress'
-                                ? 'bg-purple-100 text-purple-800 animate-pulse'
-                                : b.status === 'completed'
-                                ? 'bg-blue-100 text-blue-800'
-                                : b.status === 'cancelled' || b.status === 'rejected'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {b.status === 'in_progress' ? 'Trip In Progress' : b.status}
+                      {/* Top Header of Card */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-lg">
+                            #{b.bookingId}
+                          </span>
+                          <span className="text-xs text-slate-300 font-semibold flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> {dateFormatted} {b.startTime ? `at ${b.startTime}` : ''}
                           </span>
                         </div>
 
+                        {/* Status Badges */}
+                        <div>
+                          {b.status === 'pending' && (
+                            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
+                              ⏳ नई बुकिंग (स्वीकार करें)
+                            </span>
+                          )}
+                          {b.status === 'confirmed' && (
+                            <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
+                              ✅ कन्फर्म है (गाड़ी भेजें)
+                            </span>
+                          )}
+                          {b.status === 'in_progress' && (
+                            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 animate-pulse">
+                              🚗 राइड चल रही है
+                            </span>
+                          )}
+                          {b.status === 'completed' && (
+                            <span className="bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
+                              🎉 पूरी हो गई (Completed)
+                            </span>
+                          )}
+                          {b.status === 'cancelled' && (
+                            <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
+                              ❌ रद्द (Cancelled)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Main Details Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Car Details */}
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={b.car?.images?.main}
-                            alt={b.car?.name}
-                            className="w-20 h-16 rounded-2xl object-cover shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-extrabold text-base text-slate-900 truncate">
-                              {b.car?.brand} {b.car?.name}
-                            </h4>
-                            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              {new Date(b.startDate).toLocaleDateString()} to {new Date(b.endDate).toLocaleDateString()}
-                            </div>
-                            <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-                              Reporting: <span className="font-bold text-slate-900">{b.startTime || '10:00 AM'}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Customer Information & WhatsApp */}
-                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                              Client Information
-                            </span>
-                            <span className="font-extrabold text-slate-900">{customerName}</span>
-                            {customerPhone && (
-                              <span className="text-slate-600 ml-1.5">({customerPhone})</span>
-                            )}
-                          </div>
-                          {customerPhone && (
-                            <div className="flex items-center gap-1.5">
-                              <a
-                                href={`tel:${customerPhone}`}
-                                className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition"
-                                title="Call Customer"
-                              >
-                                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                              </a>
-                              <a
-                                href={`https://wa.me/${customerPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(customerName)},%20regarding%20your%20booking%20#${b.bookingId}%20with%20RAS%20Brother%20Tour%20%26%20Travels.`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 transition"
-                              >
-                                <Share2 className="w-3 h-3" /> WhatsApp
-                              </a>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Route Details */}
-                        <div className="p-3 bg-slate-50 rounded-2xl text-xs space-y-1.5 text-slate-600">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate"><strong className="text-slate-800">Pickup:</strong> {b.pickupLocation?.address}</span>
-                          </div>
-                          {b.destinationAddress && (
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              <span className="truncate"><strong className="text-slate-800">Destination:</strong> {b.destinationAddress}</span>
-                            </div>
-                          )}
-                          {b.distanceKm > 0 && (
-                            <div className="text-[11px] font-bold text-amber-700 pt-1 border-t border-slate-200">
-                              Estimated Road Distance: {b.distanceKm} KM
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Floral Decoration Package */}
-                        {b.decorationPackage && b.decorationPackage.id !== 'none' && (
-                          <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs flex items-center justify-between text-rose-800">
-                            <span className="flex items-center gap-1.5 font-bold">
-                              <Sparkles className="w-3.5 h-3.5 text-rose-500" />
-                              Floral Style: {b.decorationPackage.name}
-                            </span>
-                            <span className="font-mono font-bold">+₹{b.decorationPackage.price?.toLocaleString('en-IN')}</span>
-                          </div>
-                        )}
-
-                        {/* Chauffeur Assignment */}
-                        <div className="p-3 bg-slate-100 rounded-2xl text-xs flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                              Assigned Chauffeur &amp; Vehicle Plate
-                            </span>
-                            {b.chauffeur?.name ? (
-                              <div className="font-extrabold text-slate-900 mt-0.5">
-                                {b.chauffeur.name} • <span className="font-mono text-slate-600">{b.chauffeur.vehiclePlate || 'Plate Ready'}</span> ({b.chauffeur.phone || 'No phone'})
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 italic">No chauffeur assigned yet</span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedBookingForChauffeur(b);
-                              setChauffeurForm({
-                                name: b.chauffeur?.name || '',
-                                phone: b.chauffeur?.phone || '',
-                                vehiclePlate: b.chauffeur?.vehiclePlate || '',
-                              });
-                              setChauffeurModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold transition shadow-sm"
-                          >
-                            {b.chauffeur?.name ? 'Edit Chauffeur' : '+ Assign Chauffeur'}
-                          </button>
-                        </div>
-
-                        {/* Financial Breakdown */}
-                        <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-200 text-xs space-y-1">
-                          <div className="flex justify-between font-bold text-slate-800">
-                            <span>Total Trip Price:</span>
-                            <span>₹{total.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div className="flex justify-between text-emerald-700 font-bold">
-                            <span>Advance Paid by Customer:</span>
-                            <span>₹{advance.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div className="flex justify-between text-amber-900 font-extrabold pt-1 border-t border-amber-200">
-                            <span>Balance to Collect at Venue:</span>
-                            <span className="font-mono text-sm">₹{remaining.toLocaleString('en-IN')}</span>
-                          </div>
-                        </div>
-                        {/* Customer Payment Verification Block */}
-                        {(b.paymentScreenshot || b.utrNumber || b.paymentVerificationStatus === 'pending_verification') && (
-                          <div className={`p-3.5 rounded-2xl border text-xs space-y-2.5 ${
-                            b.paymentVerificationStatus === 'verified'
-                              ? 'bg-emerald-50/70 border-emerald-200'
-                              : b.paymentVerificationStatus === 'rejected'
-                              ? 'bg-rose-50/70 border-rose-200'
-                              : 'bg-amber-50/80 border-amber-300'
-                          }`}>
-                            <div className="flex items-center justify-between">
-                              <span className="font-extrabold text-[11px] uppercase tracking-wide flex items-center gap-1.5 text-slate-800">
-                                <QrCode className="w-3.5 h-3.5 text-amber-600" /> UPI Advance Receipt
-                              </span>
-                              <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
-                                b.paymentVerificationStatus === 'verified'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : b.paymentVerificationStatus === 'rejected'
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-amber-200 text-amber-900 animate-pulse'
-                              }`}>
-                                {b.paymentVerificationStatus === 'verified'
-                                  ? '✓ Verified'
-                                  : b.paymentVerificationStatus === 'rejected'
-                                  ? '✕ Rejected'
-                                  : '⏳ Verification Pending'}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="space-y-0.5">
-                                <span className="text-[10px] text-slate-500 font-bold block uppercase">
-                                  Customer UTR / Ref Number:
-                                </span>
-                                <span className="font-mono font-extrabold text-sm text-slate-900">
-                                  {b.utrNumber || 'Not entered'}
-                                </span>
-                              </div>
-
-                              {b.paymentScreenshot && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setViewingReceipt({ screenshot: b.paymentScreenshot, utr: b.utrNumber, booking: b });
-                                    setReceiptModalOpen(true);
-                                  }}
-                                  className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-amber-400 text-slate-800 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
-                                >
-                                  <Eye className="w-3.5 h-3.5 text-amber-600" /> View Receipt
-                                </button>
+                        <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            गाड़ी (Booked Car)
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={b.car?.images?.main || '/brand/ras-logo-primary.svg'}
+                              alt="Car"
+                              className="w-14 h-12 rounded-xl object-cover bg-slate-900 border border-slate-800"
+                            />
+                            <div>
+                              <h4 className="font-black text-sm text-white">{b.car?.name || 'Car'}</h4>
+                              <p className="text-xs text-amber-400 font-semibold">₹{b.car?.pricing?.perKm || 20}/km</p>
+                              {b.car?.fuelIncluded ? (
+                                <span className="text-[10px] text-emerald-400 font-semibold">⛽ तेल गाड़ी का</span>
+                              ) : (
+                                <span className="text-[10px] text-rose-300 font-semibold">⚠️ तेल ग्राहक का</span>
                               )}
                             </div>
                           </div>
-                        )}
+                        </div>
+
+                        {/* Customer Info & Direct Call Button */}
+                        <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            ग्राहक की जानकारी (Customer)
+                          </span>
+                          <div className="space-y-1">
+                            <h4 className="font-black text-sm text-white">{customerName}</h4>
+                            <p className="text-xs text-slate-300 font-mono">{customerPhone || 'फोन नंबर उपलब्ध नहीं'}</p>
+                          </div>
+                          {customerPhone && (
+                            <a
+                              href={`tel:${customerPhone}`}
+                              className="w-full mt-2 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition active:scale-95"
+                            >
+                              <Phone className="w-4 h-4 fill-white" />
+                              <span>📞 कॉल करें (Call Customer)</span>
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Route & Distance */}
+                        <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            सफ़र का रूट (Route & Distance)
+                          </span>
+                          <div className="text-xs space-y-1.5">
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-emerald-400 font-bold">🟢 पिकअप:</span>
+                              <span className="text-slate-200 line-clamp-1">
+                                {b.pickupLocation?.address || 'Pickup Point'}
+                              </span>
+                            </div>
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-rose-400 font-bold">🔴 ड्रॉप:</span>
+                              <span className="text-slate-200 line-clamp-1">
+                                {b.destinationAddress || 'Destination Point'}
+                              </span>
+                            </div>
+                            {b.distanceKm && (
+                              <div className="text-[11px] font-black text-amber-400 pt-1">
+                                📏 कुल दूरी: {b.distanceKm} KM
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Ride Control Action Buttons */}
-                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                        {(b.status === 'pending' || b.paymentVerificationStatus === 'pending_verification') && (
-                          <div className="flex items-center gap-2 w-full">
-                            <button
-                              onClick={() => handleVerifyPayment(b._id, 'verify')}
-                              className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-1.5"
-                            >
-                              <Check className="w-4 h-4" /> Match UTR &amp; Confirm Order
-                            </button>
-                            <button
-                              onClick={() => handleVerifyPayment(b._id, 'reject')}
-                              className="px-4 py-2.5 rounded-xl bg-red-100 text-red-700 font-bold text-xs hover:bg-red-200 transition"
-                            >
-                              ✕ Decline
-                            </button>
+                      {/* Payment & Fares Bar */}
+                      <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">कुल किराया (Total Fare):</span>
+                            <span className="text-base font-black text-amber-400">₹{totalAmt}</span>
                           </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">एडवांस (Advance):</span>
+                            <span className="text-sm font-bold text-emerald-400">₹{advanceAmt}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">ग्राहक से बाकी लेना है:</span>
+                            <span className="text-sm font-black text-white bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-700">
+                              ₹{remainingAmt}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">पेमेंट का तरीका:</span>
+                          <span className="font-bold text-amber-300">
+                            {b.paymentMethod === 'online' ? '📱 ऑनलाइन एडवांस जमा' : '💵 गाड़ी पर नकद (Cash on Delivery)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons for Bookings */}
+                      <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
+                        {/* When Pending */}
+                        {b.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateBookingStatus(b._id, 'confirmed')}
+                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              <span>स्वीकार करें (Accept Booking)</span>
+                            </button>
+                            <button
+                              onClick={() => handleUpdateBookingStatus(b._id, 'cancelled')}
+                              className="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-xs sm:text-sm rounded-xl border border-rose-500/30 transition"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              <span>मना करें (Reject)</span>
+                            </button>
+                          </>
                         )}
 
+                        {/* When Confirmed -> Needs OTP to Start */}
                         {b.status === 'confirmed' && (
-                          <div className="flex items-center gap-2 w-full">
-                            <button
-                              onClick={() => {
-                                setSelectedBookingForOtp(b);
-                                setOtpInput('');
-                                setOtpModalOpen(true);
-                              }}
-                              className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition"
-                            >
-                              <Key className="w-4 h-4" /> Verify Customer OTP &amp; Start Ride
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedBookingForOtp(b);
+                              setOtpInput('');
+                              setOtpModalOpen(true);
+                            }}
+                            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xl flex items-center gap-2 transition transform active:scale-95"
+                          >
+                            <Key className="w-4 h-4" />
+                            <span>🔑 राइड शुरू करें (ग्राहक का OTP डालें)</span>
+                          </button>
                         )}
 
+                        {/* When In Progress -> Can Complete Ride */}
                         {b.status === 'in_progress' && (
-                          <div className="flex items-center gap-2 w-full">
-                            <button
-                              onClick={() => {
-                                setSelectedBookingForComplete(b);
-                                setCollectedAmount(remaining);
-                                setCompleteModalOpen(true);
-                              }}
-                              className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition"
-                            >
-                              <CheckCircle className="w-4 h-4" /> Complete Trip &amp; Collect Balance (₹{remaining.toLocaleString('en-IN')})
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedBookingForComplete(b);
+                              setCollectionMethod('cash');
+                              setCompleteModalOpen(true);
+                            }}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-xl flex items-center gap-2 transition"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>🏁 सफ़र पूरा करें (Complete Ride & Take Payment)</span>
+                          </button>
                         )}
 
+                        {/* When Completed */}
                         {b.status === 'completed' && (
-                          <div className="w-full flex items-center justify-between text-xs p-2 rounded-xl bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-                            <span className="flex items-center gap-1.5">
-                              <Check className="w-4 h-4 text-emerald-600" /> Trip Completed &amp; Balance Cleared
-                            </span>
-                            <span className="font-mono text-slate-600 text-[11px]">
-                              Collected via {b.paymentMethod || 'Cash'}
-                            </span>
-                          </div>
+                          <span className="text-xs font-black text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-4 py-2 rounded-xl flex items-center gap-1.5">
+                            <CheckCircle className="w-4 h-4" /> यह राइड पूरी हो चुकी है
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1279,1377 +896,465 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
             )}
           </div>
         )}
+      </main>
 
-        {/* Tab: Fleet Owner Wallet & Payout Console */}
-        {activeTab === 'wallet' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 font-heading">
-                  Fleet Owner Wallet &amp; Payouts
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Track completed trip revenues, transparent 10% platform commission, and withdraw funds to UPI / Bank.
-                </p>
+      {/* ========================================================= */}
+      {/* MODAL 1: ADD / EDIT CAR (SIMPLE & EASY)                   */}
+      {/* ========================================================= */}
+      {carModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+                  <Car className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base sm:text-lg">
+                    {isEditing ? 'गाड़ी की जानकारी बदलें (Edit Car)' : 'नई गाड़ी जोड़ें (Add New Car)'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">आसान फॉर्म भरें और अपनी गाड़ी लिस्ट करें</p>
+                </div>
               </div>
-
               <button
-                type="button"
-                onClick={() => {
-                  setPayoutForm({
-                    amount: ownerProfile?.wallet?.availableBalance || 0,
-                    method: 'UPI',
-                    upiId: ownerProfile?.bankDetails?.upiId || '',
-                    accountNo: ownerProfile?.bankDetails?.accountNumber || '',
-                    ifsc: ownerProfile?.bankDetails?.ifscCode || '',
-                    bankName: ownerProfile?.bankDetails?.bankName || '',
-                    holderName: ownerProfile?.bankDetails?.accountHolderName || user?.name || '',
-                  });
-                  setPayoutModalOpen(true);
-                }}
-                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs flex items-center gap-2 shadow-lg transition"
+                onClick={() => setCarModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
               >
-                <ArrowDownToLine className="w-4 h-4" /> Request Payout / Withdraw Funds
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Wallet Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-3xl p-6 border-2 border-emerald-300 shadow-sm space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                  Available Wallet Balance
-                </span>
-                <div className="text-3xl font-black text-emerald-600 font-heading">
-                  ₹{(ownerProfile?.wallet?.availableBalance || (stats?.totalEarnings ? Math.round(stats.totalEarnings * 0.9) : 0)).toLocaleString('en-IN')}
-                </div>
-                <div className="text-[11px] text-slate-400">Ready for instant UPI / Bank withdrawal</div>
+            <form onSubmit={handleSaveCar} className="space-y-4 text-xs font-semibold">
+              {/* Car Name */}
+              <div>
+                <label className="text-slate-300 block mb-1">
+                  गाड़ी का नाम (Car Name) <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="उदा. Swift Dzire, WagonR, Scorpio, Innova"
+                  value={carForm.name}
+                  onChange={(e) => setCarForm({ ...carForm, name: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
               </div>
 
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">
-                  Pending Payouts
-                </span>
-                <div className="text-3xl font-black text-amber-600 font-heading">
-                  ₹{(ownerProfile?.wallet?.pendingPayout || 0).toLocaleString('en-IN')}
-                </div>
-                <div className="text-[11px] text-slate-400">Under processing by compliance team</div>
-              </div>
-
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  Total Withdrawn
-                </span>
-                <div className="text-3xl font-black text-slate-800 font-heading">
-                  ₹{(ownerProfile?.wallet?.totalWithdrawn || 0).toLocaleString('en-IN')}
-                </div>
-                <div className="text-[11px] text-slate-400">Transferred to your bank/UPI</div>
-              </div>
-
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  Platform Commission (10%)
-                </span>
-                <div className="text-3xl font-black text-slate-700 font-heading">
-                  ₹{Math.round((stats?.totalEarnings || 0) * 0.1).toLocaleString('en-IN')}
-                </div>
-                <div className="text-[11px] text-slate-400">You keep 90% net fleet earnings</div>
-              </div>
-            </div>
-
-            {/* How Payout Works Banner */}
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-3xl p-6 border border-slate-700 space-y-3">
-              <div className="flex items-center gap-2 text-amber-400 font-extrabold text-sm">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-                RAS Brother Tour &amp; Travels Vendor Protection &amp; Payout Rules
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
-                <div className="p-3 bg-white/5 rounded-2xl border border-white/10 space-y-1">
-                  <div className="font-bold text-white">1. Instant Wallet Credit</div>
-                  <p className="text-[11px] text-slate-400">
-                    Once customer OTP is verified and trip is completed, 90% of trip fare is credited to your wallet balance.
-                  </p>
-                </div>
-                <div className="p-3 bg-white/5 rounded-2xl border border-white/10 space-y-1">
-                  <div className="font-bold text-white">2. Fast UPI &amp; Bank Transfer</div>
-                  <p className="text-[11px] text-slate-400">
-                    Withdraw funds anytime to any UPI handle (GPay/PhonePe/Paytm) or NEFT/IMPS bank account.
-                  </p>
-                </div>
-                <div className="p-3 bg-white/5 rounded-2xl border border-white/10 space-y-1">
-                  <div className="font-bold text-white">3. Zero Hidden Charges</div>
-                  <p className="text-[11px] text-slate-400">
-                    Straightforward 10% marketplace commission covers marketing, technology, customer support, and GPS routing.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Payout History Table */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <h3 className="text-base font-extrabold text-slate-900 font-heading">
-                Payout Withdrawal History
-              </h3>
-
-              {(!ownerProfile?.wallet?.payoutHistory || ownerProfile.wallet.payoutHistory.length === 0) ? (
-                <div className="py-10 text-center text-xs text-slate-400">
-                  No payout requests recorded yet. Click "Request Payout" above to withdraw your balance.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold">
-                        <th className="pb-3">Date</th>
-                        <th className="pb-3">Requested Amount</th>
-                        <th className="pb-3">Payout Method</th>
-                        <th className="pb-3">Account / UPI</th>
-                        <th className="pb-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ownerProfile.wallet.payoutHistory.slice().reverse().map((p, idx) => (
-                        <tr key={idx} className="font-medium text-slate-700">
-                          <td className="py-3">{new Date(p.requestedAt || Date.now()).toLocaleDateString()}</td>
-                          <td className="py-3 font-black text-emerald-600">₹{p.amount?.toLocaleString('en-IN')}</td>
-                          <td className="py-3 uppercase font-bold text-slate-900">{p.method}</td>
-                          <td className="py-3 font-mono text-slate-600">{p.upiId || 'Direct Bank NEFT'}</td>
-                          <td className="py-3">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                              p.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {p.status || 'pending'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Price Offers & Negotiations Console */}
-        {activeTab === 'offers' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black text-slate-900 font-heading">
-              Customer Price Offers for Your Fleet
-            </h2>
-
-            {ownerOffers.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center text-xs text-slate-400 border border-slate-200">
-                No active price offers received yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {ownerOffers.map((off) => (
-                  <div
-                    key={off._id}
-                    className="bg-white rounded-3xl p-6 border border-slate-200 shadow-md space-y-4 text-xs"
-                  >
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                      <span className="font-mono font-bold text-slate-500">#{off.offerId}</span>
-                      <span className="px-2.5 py-0.5 rounded-full font-bold uppercase bg-amber-100 text-amber-800">
-                        {off.status}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={off.car?.images?.main}
-                        alt={off.car?.name}
-                        className="w-14 h-12 rounded-xl object-cover shrink-0"
-                      />
-                      <div>
-                        <div className="font-bold text-sm text-slate-900">{off.car?.brand} {off.car?.name}</div>
-                        <div className="text-slate-500">From: {off.customer?.name} ({off.customer?.phone})</div>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Listed Price:</span>
-                        <span className="font-bold">₹{off.originalPrice?.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-amber-800 font-bold">
-                        <span>Customer Offer:</span>
-                        <span>₹{off.customerOffer?.toLocaleString('en-IN')}</span>
-                      </div>
-                      {off.ownerCounterOffer && (
-                        <div className="flex justify-between text-purple-700 font-bold">
-                          <span>Your Counter Offer:</span>
-                          <span>₹{off.ownerCounterOffer?.toLocaleString('en-IN')}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {off.status === 'pending' && (
-                      <div className="flex items-center gap-2 pt-2">
-                        <button
-                          onClick={() => handleRespondOffer(off._id, 'accept')}
-                          className="flex-1 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
-                        >
-                          Accept (₹{off.customerOffer})
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedOffer(off);
-                            setCounterAmount(Math.round((off.originalPrice + off.customerOffer) / 2));
-                            setCounterModalOpen(true);
-                          }}
-                          className="flex-1 py-2 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700"
-                        >
-                          Counter Offer
-                        </button>
-                        <button
-                          onClick={() => handleRespondOffer(off._id, 'reject')}
-                          className="px-3 py-2 rounded-xl bg-red-100 text-red-700 font-bold hover:bg-red-200"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tab 4: Add Car Form (Simplified for Owner) */}
-        {activeTab === 'add-car' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6 max-w-4xl mx-auto">
-            <div className="border-b border-slate-100 pb-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
-                OWNER FLEET MANAGEMENT
-              </span>
-              <h2 className="text-xl font-black text-slate-900 font-heading">
-                Add Your Car to Fleet
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Fill in basic car details, per KM rate, location, fuel policy, and photos to start receiving customer bookings.
-              </p>
-            </div>
-
-            <form onSubmit={handleAddCarSubmit} className="space-y-5">
-              {/* 1. Car Name & Basic Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+              {/* Rate per KM & Location in Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Rate Per KM */}
                 <div>
-                  <label className="block text-slate-700 mb-1">Car Name / Title *</label>
+                  <label className="text-slate-300 block mb-1">
+                    किराया प्रति KM (Rate ₹/km) <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                    <input
+                      type="number"
+                      required
+                      min="10"
+                      max="200"
+                      value={carForm.perKm}
+                      onChange={(e) => setCarForm({ ...carForm, perKm: e.target.value })}
+                      placeholder="20"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <span className="text-[10px] text-amber-400 mt-0.5 block">डिफ़ॉल्ट ₹20 प्रति KM रहेगा</span>
+                </div>
+
+                {/* Location */}
+                <div>
+                  <label className="text-slate-300 block mb-1">
+                    गाड़ी कहाँ उपलब्ध है (Location) <span className="text-rose-400">*</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Swift Dzire / Innova Crysta / Honda City"
-                    value={carForm.name}
-                    onChange={(e) => setCarForm({ ...carForm, name: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="उदा. Deoria, Gorakhpur, Mahuadih"
+                    value={carForm.locationAddress}
+                    onChange={(e) => setCarForm({ ...carForm, locationAddress: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">शहर या एरिया का नाम</span>
                 </div>
+              </div>
 
+              {/* Fuel Included or Fuel Extra Charge Option */}
+              <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-2">
+                <label className="text-slate-200 block text-xs font-black">
+                  ⛽ तेल की शर्त (Fuel Option):
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCarForm({ ...carForm, fuelIncluded: true })}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      carForm.fuelIncluded
+                        ? 'bg-emerald-600 text-white border-emerald-400 shadow'
+                        : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>तेल गाड़ी का (Fuel Included)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCarForm({ ...carForm, fuelIncluded: false })}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      !carForm.fuelIncluded
+                        ? 'bg-amber-600 text-white border-amber-400 shadow'
+                        : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>तेल ग्राहक का (Fuel Extra)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Seats & Fuel Type */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 mb-1">Seating Capacity</label>
+                  <label className="text-slate-300 block mb-1">बैठने की सीटें (Seats)</label>
                   <select
                     value={carForm.seatingCapacity}
                     onChange={(e) => setCarForm({ ...carForm, seatingCapacity: Number(e.target.value) })}
-                    className="w-full p-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value={4}>4 Seats</option>
-                    <option value={5}>5 Seats (Standard Sedan)</option>
-                    <option value={7}>7 Seats (SUV / Innova)</option>
-                    <option value={8}>8+ Seats (Van / Traveler)</option>
+                    <option value={4}>4 सीटर</option>
+                    <option value={5}>5 सीटर (Standard)</option>
+                    <option value={7}>7 सीटर (Scorpio / Ertiga)</option>
+                    <option value={8}>8 सीटर (Innova)</option>
+                    <option value={12}>12 सीटर (Tempo)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1">ईंधन का प्रकार (Fuel)</label>
+                  <select
+                    value={carForm.fuelType}
+                    onChange={(e) => setCarForm({ ...carForm, fuelType: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Diesel">डीज़ल (Diesel)</option>
+                    <option value="Petrol">पेट्रोल (Petrol)</option>
+                    <option value="CNG">सीएनजी (CNG)</option>
+                    <option value="Electric">इलेक्ट्रिक (EV)</option>
                   </select>
                 </div>
               </div>
 
-              {/* 2. Price per KM & Fuel Policy Toggle */}
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
-                <div className="font-extrabold text-sm text-slate-900 flex items-center justify-between">
-                  <span>Pricing &amp; Fuel Policy</span>
-                  <span className="text-xs text-amber-800 font-bold">Standard: ₹20 / KM</span>
-                </div>
+              {/* Car Photo Upload / Image URL */}
+              <div className="space-y-2">
+                <label className="text-slate-300 block mb-1">गाड़ी की फोटो (Car Photo)</label>
+                <div className="flex items-center gap-3">
+                  {carForm.mainImage ? (
+                    <img
+                      src={carForm.mainImage}
+                      alt="Preview"
+                      className="w-16 h-14 rounded-xl object-cover bg-slate-800 border border-slate-700"
+                    />
+                  ) : (
+                    <div className="w-16 h-14 rounded-xl bg-slate-800 border border-dashed border-slate-700 flex items-center justify-center text-slate-500">
+                      <Car className="w-6 h-6" />
+                    </div>
+                  )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
-                  <div>
-                    <label className="block text-slate-700 mb-1">Price Per KM (₹) *</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-3 text-slate-400 font-bold">₹</span>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingImage ? 'अपलोड हो रहा है...' : 'गैलरी से फोटो चुनें (Upload Photo)'}</span>
                       <input
-                        type="number"
-                        required
-                        min="10"
-                        max="200"
-                        value={carForm.perKm}
-                        onChange={(e) => setCarForm({ ...carForm, perKm: Number(e.target.value), extraKmRate: Number(e.target.value) })}
-                        className="w-full pl-8 p-3 rounded-xl border border-slate-300 bg-white text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        disabled={uploadingImage}
+                        className="hidden"
                       />
-                    </div>
-                    <span className="text-[11px] text-slate-500 mt-1 block">Default rate is ₹20 per KM</span>
-                  </div>
-
-                  {/* Fuel Policy Button Toggle */}
-                  <div>
-                    <label className="block text-slate-700 mb-1">Fuel Charge Policy *</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setCarForm({ ...carForm, fuelIncluded: true })}
-                        className={`p-3 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-1.5 ${
-                          carForm.fuelIncluded !== false
-                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
-                        Fuel Included
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setCarForm({ ...carForm, fuelIncluded: false })}
-                        className={`p-3 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-1.5 ${
-                          carForm.fuelIncluded === false
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="w-2 h-2 rounded-full bg-amber-300"></span>
-                        Fuel Extra Charge
-                      </button>
-                    </div>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      {carForm.fuelIncluded !== false ? 'Customer pays nothing extra for fuel.' : 'Customer pays fuel cost separately as per actual KM.'}
-                    </span>
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="या फोटो का लिंक डालें (Or paste photo URL)"
+                      value={carForm.mainImage}
+                      onChange={(e) => setCarForm({ ...carForm, mainImage: e.target.value })}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* 3. Available Location */}
-              <div className="text-xs font-semibold">
-                <label className="block text-slate-700 mb-1 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
-                  Where is this Car Available? (City / Area / Location) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sector 18 Noida, Delhi NCR, Connaught Place, Gurgaon"
-                  value={carForm.address}
-                  onChange={(e) => setCarForm({ ...carForm, address: e.target.value, city: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  This location will be used to calculate proximity when customers search nearest cabs.
-                </span>
-              </div>
-
-              {/* 4. Payment Modes Accepted */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs font-semibold">
-                <label className="block text-slate-800 font-bold">Payment Methods Accepted from Customers:</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2.5 p-3 rounded-xl bg-white border border-slate-200 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={carForm.paymentMethods?.includes('cod')}
-                      onChange={(e) => {
-                        const methods = new Set(carForm.paymentMethods || ['cod', 'online']);
-                        if (e.target.checked) methods.add('cod');
-                        else methods.delete('cod');
-                        setCarForm({ ...carForm, paymentMethods: Array.from(methods) });
-                      }}
-                      className="w-4 h-4 accent-amber-600 rounded"
-                    />
-                    <div>
-                      <div className="font-bold text-slate-900">💵 Cash on Delivery (COD)</div>
-                      <div className="text-[11px] text-slate-500">Customer pays cash to driver on ride day</div>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 p-3 rounded-xl bg-white border border-slate-200 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={carForm.paymentMethods?.includes('online')}
-                      onChange={(e) => {
-                        const methods = new Set(carForm.paymentMethods || ['cod', 'online']);
-                        if (e.target.checked) methods.add('online');
-                        else methods.delete('online');
-                        setCarForm({ ...carForm, paymentMethods: Array.from(methods) });
-                      }}
-                      className="w-4 h-4 accent-amber-600 rounded"
-                    />
-                    <div>
-                      <div className="font-bold text-slate-900">📱 Online (UPI QR Code)</div>
-                      <div className="text-[11px] text-slate-500">Customer pays via GPay, PhonePe, Paytm QR</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* 5. Car Photo (Upload or URL) */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs font-semibold">
-                <label className="block text-slate-800 font-bold flex items-center gap-1.5">
-                  <ImageIcon className="w-4 h-4 text-amber-600" />
-                  Car Photo (Upload Image File or Paste Link) *
-                </label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    placeholder="Paste image URL here or upload below..."
-                    value={carForm.mainImage}
-                    onChange={(e) => setCarForm({ ...carForm, mainImage: e.target.value })}
-                    className="flex-1 p-2.5 rounded-xl border border-slate-300 bg-white"
-                  />
-                  <label className="px-4 py-2.5 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 cursor-pointer hover:bg-amber-100 transition flex items-center justify-center gap-1.5 text-amber-900 font-bold shrink-0">
-                    <Upload className="w-4 h-4" />
-                    <span>{uploadingMain ? 'Uploading...' : 'Upload from Device'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, 'mainImage', setCarForm)}
-                    />
-                  </label>
-                </div>
-                {carForm.mainImage && (
-                  <div className="h-32 w-48 rounded-xl overflow-hidden border border-slate-300 mt-2">
-                    <img src={carForm.mainImage} alt="Car preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-
-              {/* 6. Description */}
-              <div className="text-xs font-semibold">
-                <label className="block text-slate-700 mb-1">Car Description &amp; Details</label>
+              {/* Description (Optional) */}
+              <div>
+                <label className="text-slate-300 block mb-1">गाड़ी का विवरण (Description - Optional)</label>
                 <textarea
-                  rows="3"
-                  placeholder="Mention car condition, AC, luggage space, driver experience..."
+                  rows={2}
+                  placeholder="उदा. बढ़िया AC गाड़ी, साफ़ सुथरी सीट, अनुभवी ड्राइवर"
                   value={carForm.description}
                   onChange={(e) => setCarForm({ ...carForm, description: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
+              </div>
+
+              {/* Payment Methods Checkbox */}
+              <div className="bg-slate-800/40 p-3 rounded-xl border border-slate-800 flex items-center gap-4 text-xs">
+                <span className="text-slate-300 font-bold">पेमेंट विकल्प:</span>
+                <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={carForm.paymentMethods.includes('cod')}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...carForm.paymentMethods, 'cod']
+                        : carForm.paymentMethods.filter((m) => m !== 'cod');
+                      setCarForm({ ...carForm, paymentMethods: next });
+                    }}
+                    className="rounded text-amber-500"
+                  />
+                  <span>💵 नकद (Cash on Delivery)</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={carForm.paymentMethods.includes('online')}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...carForm.paymentMethods, 'online']
+                        : carForm.paymentMethods.filter((m) => m !== 'online');
+                      setCarForm({ ...carForm, paymentMethods: next });
+                    }}
+                    className="rounded text-amber-500"
+                  />
+                  <span>📱 ऑनलाइन (QR Code)</span>
+                </label>
               </div>
 
               {/* Submit Button */}
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition"
-              >
-                + Add Car to Fleet
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Tab 5: KYC Verification */}
-        {activeTab === 'kyc' && (
-          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-md space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-900 font-heading">
-                Vendor Identity &amp; Vehicle KYC Verification
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Upload your government ID and commercial vehicle permit for official verification on RAS Brother Tour &amp; Travels.
-              </p>
-            </div>
-
-            {kycInfo && (
-              <div className={`p-4 rounded-2xl border text-xs flex items-center justify-between ${
-                kycInfo.status === 'verified'
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                  : kycInfo.status === 'rejected'
-                  ? 'bg-red-50 border-red-300 text-red-900'
-                  : 'bg-amber-50 border-amber-300 text-amber-900'
-              }`}>
-                <div>
-                  <div className="font-extrabold uppercase">Status: {kycInfo.status}</div>
-                  <div className="mt-0.5">{kycInfo.adminFeedback || 'Under review by RAS Brother compliance team.'}</div>
-                </div>
-                <div className="font-mono">{kycInfo.idType}: {kycInfo.idNumber}</div>
-              </div>
-            )}
-
-            <form onSubmit={handleKycSubmit} className="space-y-4 max-w-xl text-xs font-semibold">
-              <div>
-                <label className="block text-slate-700 mb-1">ID Document Type</label>
-                <select
-                  value={kycForm.idType}
-                  onChange={(e) => setKycForm({ ...kycForm, idType: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-                >
-                  <option>Aadhaar Card</option>
-                  <option>PAN Card</option>
-                  <option>Driving License</option>
-                  <option>Voter ID</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 mb-1">Document Number</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 1234 5678 9012"
-                  value={kycForm.idNumber}
-                  onChange={(e) => setKycForm({ ...kycForm, idNumber: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 mb-1">Document Image URL or Upload</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="https://... or /uploads/..."
-                  value={kycForm.documentFront}
-                  onChange={(e) => setKycForm({ ...kycForm, documentFront: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition"
-              >
-                Submit KYC for Verification
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* EDIT CAR MODAL */}
-        {editModalOpen && editingCar && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-2xl w-full my-auto overflow-hidden shadow-2xl border border-slate-200">
-              <div className="bg-slate-900 px-6 py-5 text-white flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-black tracking-widest uppercase text-amber-400">
-                    UPDATE LISTING
-                  </span>
-                  <h3 className="font-extrabold text-lg font-heading">
-                    Edit {editingCar.brand} {editingCar.name}
-                  </h3>
-                </div>
+              <div className="pt-2">
                 <button
-                  onClick={() => setEditModalOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  type="submit"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition transform active:scale-95"
                 >
-                  <X className="w-5 h-5" />
+                  {isEditing ? '✓ जानकारी सुरक्षित करें (Save Changes)' : '+ गाड़ी लिस्ट करें (List Car)'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              <form onSubmit={handleSaveEditCar} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto text-xs font-semibold">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-slate-700 mb-1">Display Title</label>
-                    <input
-                      type="text"
-                      required
-                      value={editingCar.name}
-                      onChange={(e) => setEditingCar({ ...editingCar, name: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Category</label>
-                    <select
-                      value={editingCar.category}
-                      onChange={(e) => setEditingCar({ ...editingCar, category: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
+      {/* ========================================================= */}
+      {/* MODAL 2: CUSTOM DATE BLOCK / UNBLOCK                      */}
+      {/* ========================================================= */}
+      {dateModalOpen && selectedCarForDates && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-amber-400" />
+                <h3 className="font-black text-base">तारीख बंद या खोलें (Date Availability)</h3>
+              </div>
+              <button
+                onClick={() => setDateModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              गाड़ी: <strong className="text-amber-400">{selectedCarForDates.name}</strong>
+            </p>
+            <p className="text-xs text-slate-400">
+              अगर किसी तारीख को गाड़ी पहले से कहीं और बुक है या सर्विसिंग में है, तो वह तारीख यहाँ डालकर बंद कर सकते हैं। उस दिन ग्राहक को यह गाड़ी उपलब्ध नहीं दिखेगी।
+            </p>
+
+            {/* Block New Date Input */}
+            <div className="space-y-2">
+              <label className="text-slate-300 block text-xs font-bold">तारीख चुनें जिसे बंद करना है:</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  value={dateToBlock}
+                  onChange={(e) => setDateToBlock(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleToggleDate(selectedCarForDates._id, dateToBlock)}
+                  disabled={!dateToBlock}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow transition"
+                >
+                  बंद करें (Block)
+                </button>
+              </div>
+            </div>
+
+            {/* Currently Blocked Dates List */}
+            <div className="pt-3 border-t border-slate-800 space-y-2">
+              <span className="text-xs font-bold text-slate-400 block">
+                वर्तमान में बंद तारीखें (Currently Blocked Dates):
+              </span>
+              {(!selectedCarForDates.unavailableDates || selectedCarForDates.unavailableDates.length === 0) ? (
+                <p className="text-xs text-emerald-400 font-semibold bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-900/50">
+                  ✓ कोई तारीख बंद नहीं है। गाड़ी सभी दिनों में उपलब्ध है।
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
+                  {selectedCarForDates.unavailableDates.map((d) => (
+                    <span
+                      key={d}
+                      className="bg-rose-950/80 border border-rose-800/80 text-rose-300 text-xs font-mono font-bold px-3 py-1.5 rounded-xl flex items-center gap-2"
                     >
-                      <option>Wedding Special</option>
-                      <option>Luxury</option>
-                      <option>Premium</option>
-                      <option>Sedan</option>
-                      <option>SUV</option>
-                      <option>Vintage</option>
-                      <option>Party Car</option>
-                      <option>Budget</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Per Day Price (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      value={editingCar.perDay}
-                      onChange={(e) => setEditingCar({ ...editingCar, perDay: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-slate-700 mb-1">Extra KM Rate (₹/KM)</label>
-                    <input
-                      type="number"
-                      value={editingCar.extraKmRate}
-                      onChange={(e) => setEditingCar({ ...editingCar, extraKmRate: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Chauffeur Charges (₹)</label>
-                    <input
-                      type="number"
-                      value={editingCar.driverCharges}
-                      onChange={(e) => setEditingCar({ ...editingCar, driverCharges: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Advance Type &amp; Value</label>
-                    <div className="flex gap-1.5">
-                      <select
-                        value={editingCar.advanceType}
-                        onChange={(e) => setEditingCar({ ...editingCar, advanceType: e.target.value })}
-                        className="p-2.5 rounded-xl border border-slate-300 bg-white text-[11px]"
-                      >
-                        <option value="percentage">%</option>
-                        <option value="fixed">Fixed ₹</option>
-                      </select>
-                      <input
-                        type="number"
-                        value={editingCar.advanceValue}
-                        onChange={(e) => setEditingCar({ ...editingCar, advanceValue: e.target.value })}
-                        className="w-full p-2.5 rounded-xl border border-slate-300"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photos: Upload file OR link */}
-                {/* Photos: Upload file OR link */}
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                  <label className="block text-slate-800 font-bold text-xs">Main Exterior Photo (Upload or Link)</label>
-                  {editingCar.mainImage && (
-                    <div className="relative w-full h-32 rounded-xl overflow-hidden bg-slate-100 border border-slate-300">
-                      <img src={editingCar.mainImage} alt="Preview" className="w-full h-full object-cover" />
+                      <span>⛔ {d}</span>
                       <button
                         type="button"
-                        onClick={() => setEditingCar({ ...editingCar, mainImage: '' })}
-                        className="absolute top-2 right-2 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md hover:bg-red-700"
-                        title="Remove image"
+                        onClick={() => handleToggleDate(selectedCarForDates._id, d)}
+                        className="text-rose-400 hover:text-white p-0.5 rounded"
+                        title="खोलें (Make Available)"
                       >
-                        ✕
+                        <X className="w-3.5 h-3.5" />
                       </button>
-                    </div>
-                  )}
-                  <input
-                    type="text"
-                    placeholder="Paste image URL here..."
-                    value={editingCar.mainImage}
-                    onChange={(e) => setEditingCar({ ...editingCar, mainImage: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-300 text-xs font-medium"
-                  />
-                  <label className="flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50/50 cursor-pointer hover:bg-amber-100 transition">
-                    <Upload className="w-4 h-4 text-amber-700" />
-                    <span className="text-amber-900 font-bold text-xs">Upload New Photo from Device</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, 'mainImage', setEditingCar)}
-                    />
-                  </label>
-                </div>
-
-                {/* Availability Toggle */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                  <div>
-                    <div className="font-bold text-slate-800">Car Available on Marketplace</div>
-                    <div className="text-[11px] text-slate-500">Disable if vehicle is in service or booked offline</div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editingCar.isAvailable}
-                      onChange={(e) => setEditingCar({ ...editingCar, isAvailable: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                  </label>
-                </div>
-
-                {/* Marketplace Display Location & Coverage Area */}
-                <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-300 space-y-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-amber-700" />
-                    <span className="font-extrabold text-slate-900">
-                      Marketplace Display Location (Manual City &amp; Area Placement)
                     </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    Change which area and city this car is shown in for "Cars near me" and wedding pickup venue searches.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-slate-700 font-bold mb-1">Display Area / Address *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editingCar.address || ''}
-                        onChange={(e) => setEditingCar({ ...editingCar, address: e.target.value })}
-                        className="w-full p-2 rounded-xl border border-slate-300 bg-white"
-                        placeholder="e.g. Noida Sector 18"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-700 font-bold mb-1">City *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editingCar.city || ''}
-                        onChange={(e) => setEditingCar({ ...editingCar, city: e.target.value })}
-                        className="w-full p-2 rounded-xl border border-slate-300 bg-white"
-                        placeholder="e.g. Noida"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-700 font-bold mb-1">Coverage Radius (KM)</label>
-                      <input
-                        type="number"
-                        value={editingCar.serviceRadiusKm || 50}
-                        onChange={(e) => setEditingCar({ ...editingCar, serviceRadiusKm: e.target.value })}
-                        className="w-full p-2 rounded-xl border border-slate-300 bg-white"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-slate-700 mb-1">Description</label>
-                  <textarea
-                    rows="2"
-                    value={editingCar.description}
-                    onChange={(e) => setEditingCar({ ...editingCar, description: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black shadow-md"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </form>
+              )}
             </div>
+
+            <button
+              onClick={() => setDateModalOpen(false)}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition"
+            >
+              बंद करें (Done)
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Counter Offer Modal */}
-        {counterModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-              <h3 className="font-extrabold text-base text-slate-900">
-                Propose Counter Offer to Customer
-              </h3>
-              <p className="text-xs text-slate-500">
-                Customer offered ₹{selectedOffer?.customerOffer}. Propose your counter price.
+      {/* ========================================================= */}
+      {/* MODAL 3: START RIDE OTP VERIFICATION                      */}
+      {/* ========================================================= */}
+      {otpModalOpen && selectedBookingForOtp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-white text-center">
+            <div className="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+              <Key className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-black text-lg">राइड शुरू करें (Start Ride)</h3>
+              <p className="text-xs text-slate-400">
+                गाड़ी ग्राहक के पास पहुँचने पर ग्राहक के मोबाइल पर आया 4 अंकों का OTP यहाँ दर्ज करें।
               </p>
+            </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700">Counter Amount (₹)</label>
+            <form onSubmit={handleVerifyOtpAndStartRide} className="space-y-4 pt-2">
+              <div>
                 <input
-                  type="number"
-                  value={counterAmount}
-                  onChange={(e) => setCounterAmount(Number(e.target.value))}
-                  className="w-full p-3 rounded-xl border border-slate-300 font-black text-lg text-slate-900"
+                  type="text"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  placeholder="• • • •"
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                  className="w-48 mx-auto text-center font-mono tracking-widest text-2xl font-black bg-slate-950 border-2 border-amber-500 rounded-2xl py-3 text-white focus:outline-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex gap-2 pt-2">
                 <button
-                  onClick={() => setCounterModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleRespondOffer(selectedOffer._id, 'counter', counterAmount)}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white"
-                >
-                  Send Counter Offer
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* OTP Start Ride Verification Modal */}
-        {otpModalOpen && selectedBookingForOtp && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-amber-500" />
-                  <h3 className="font-extrabold text-base text-slate-900">
-                    Verify Customer Ride Start OTP
-                  </h3>
-                </div>
-                <button
+                  type="button"
                   onClick={() => setOtpModalOpen(false)}
-                  className="p-1 rounded-xl text-slate-400 hover:text-slate-600"
+                  className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700"
                 >
-                  <X className="w-5 h-5" />
+                  रद्द करें
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg"
+                >
+                  वेरीफाई करें
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              <p className="text-xs text-slate-600">
-                Ask the client (<strong>{selectedBookingForOtp.offlineCustomer?.name || selectedBookingForOtp.customer?.name}</strong>) for their 4-digit Ride Start OTP shown on their pass to verify reporting.
+      {/* ========================================================= */}
+      {/* MODAL 4: COMPLETE RIDE & PAYMENT CONFIRMATION             */}
+      {/* ========================================================= */}
+      {completeModalOpen && selectedBookingForComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-white">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto">
+                <CheckCircle className="w-7 h-7" />
+              </div>
+              <h3 className="font-black text-lg">राइड पूरी करें (Complete Trip)</h3>
+              <p className="text-xs text-slate-400">
+                सफ़र समाप्त हो गया है। कृपया ग्राहक से बाकी बची रकम प्राप्त कर लें।
               </p>
+            </div>
 
-              <form onSubmit={handleVerifyStartOtp} className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Enter 4-Digit OTP
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    placeholder="e.g. 5839"
-                    value={otpInput}
-                    onChange={(e) => setOtpInput(e.target.value)}
-                    className="w-full p-3.5 rounded-2xl border-2 border-amber-400 text-center font-mono text-2xl font-black tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center space-y-1">
+              <span className="text-[10px] text-slate-400 uppercase font-bold">बाकी पेमेंट (Balance to Collect):</span>
+              <p className="text-2xl font-black text-emerald-400">
+                ₹{selectedBookingForComplete.pricing?.remainingAmount || 0}
+              </p>
+            </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-500 space-y-1">
-                  <div>Booking: #{selectedBookingForOtp.bookingId}</div>
-                  <div>Car: {selectedBookingForOtp.car?.brand} {selectedBookingForOtp.car?.name}</div>
-                  <div>Pickup: {selectedBookingForOtp.pickupLocation?.address}</div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
+            <form onSubmit={handleCompleteRide} className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">पेमेंट कैसे मिला?</label>
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setOtpModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                    onClick={() => setCollectionMethod('cash')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      collectionMethod === 'cash'
+                        ? 'bg-emerald-600 text-white border-emerald-400'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
                   >
-                    Cancel
+                    💵 नकद (Cash)
                   </button>
                   <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md transition"
+                    type="button"
+                    onClick={() => setCollectionMethod('online')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      collectionMethod === 'online'
+                        ? 'bg-amber-600 text-white border-amber-400'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
                   >
-                    Verify &amp; Start Trip
+                    📱 ऑनलाइन (UPI)
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
+              </div>
 
-        {/* Complete Trip & Collect Balance Modal */}
-        {completeModalOpen && selectedBookingForComplete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-extrabold text-base text-slate-900">
-                    Complete Trip &amp; Collect Balance
-                  </h3>
-                </div>
+              <div className="flex gap-2 pt-2">
                 <button
+                  type="button"
                   onClick={() => setCompleteModalOpen(false)}
-                  className="p-1 rounded-xl text-slate-400 hover:text-slate-600"
+                  className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700"
                 >
-                  <X className="w-5 h-5" />
+                  रद्द करें
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-lg"
+                >
+                  ✓ पूरी करें
                 </button>
               </div>
-
-              <p className="text-xs text-slate-600">
-                Confirm receipt of remaining event balance from client. Once completed, 90% of trip fare will be added to your available wallet balance.
-              </p>
-
-              <form onSubmit={handleCompleteRide} className="space-y-4 text-xs font-semibold">
-                <div>
-                  <label className="block text-slate-700 mb-1">Payment Method Used by Customer</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCompleteMethod('cash')}
-                      className={`p-3 rounded-xl border text-center font-bold transition ${
-                        completeMethod === 'cash'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      💵 Cash at Venue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCompleteMethod('upi')}
-                      className={`p-3 rounded-xl border text-center font-bold transition ${
-                        completeMethod === 'upi'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      📱 Driver UPI / QR
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 mb-1">Balance Collected (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    value={collectedAmount}
-                    onChange={(e) => setCollectedAmount(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-300 font-mono text-base font-bold text-slate-900"
-                  />
-                </div>
-
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-0.5">
-                  <div>Total Trip Price: ₹{selectedBookingForComplete.pricing?.totalAmount?.toLocaleString('en-IN')}</div>
-                  <div>Advance Paid: ₹{selectedBookingForComplete.pricing?.advanceAmount?.toLocaleString('en-IN')}</div>
-                  <div className="font-bold text-emerald-700 pt-1 border-t border-amber-200">
-                    Net Credited to Your Wallet (90%): ₹{Math.round((selectedBookingForComplete.pricing?.totalAmount || 0) * 0.9).toLocaleString('en-IN')}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setCompleteModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition"
-                  >
-                    Confirm &amp; Complete Trip
-                  </button>
-                </div>
-              </form>
-            </div>
+            </form>
           </div>
-        )}
-
-        {/* Assign Chauffeur Modal */}
-        {chauffeurModalOpen && selectedBookingForChauffeur && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <UserCheck className="w-5 h-5 text-slate-800" />
-                  <h3 className="font-extrabold text-base text-slate-900">
-                    Assign Chauffeur &amp; Vehicle Plate
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setChauffeurModalOpen(false)}
-                  className="p-1 rounded-xl text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <p className="text-xs text-slate-600">
-                These driver details will be instantly synced to the customer's VIP Event Security Pass &amp; WhatsApp dispatch.
-              </p>
-
-              <form onSubmit={handleAssignChauffeur} className="space-y-4 text-xs font-semibold">
-                <div>
-                  <label className="block text-slate-700 mb-1">Chauffeur Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Singh"
-                    value={chauffeurForm.name}
-                    onChange={(e) => setChauffeurForm({ ...chauffeurForm, name: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 mb-1">Chauffeur Mobile Number</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. +91 98765 43210"
-                    value={chauffeurForm.phone}
-                    onChange={(e) => setChauffeurForm({ ...chauffeurForm, phone: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 mb-1">Vehicle License Plate No.</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. DL 1C AA 2026 / UP 16 BB 1234"
-                    value={chauffeurForm.vehiclePlate}
-                    onChange={(e) => setChauffeurForm({ ...chauffeurForm, vehiclePlate: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 uppercase font-mono"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setChauffeurModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 text-white shadow-md transition"
-                  >
-                    Save &amp; Dispatch Pass
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Payout Withdrawal Modal */}
-        {payoutModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-extrabold text-base text-slate-900">
-                    Withdraw Earnings to UPI / Bank
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setPayoutModalOpen(false)}
-                  className="p-1 rounded-xl text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center justify-between text-xs">
-                <span className="font-bold text-emerald-900">Available to Withdraw:</span>
-                <span className="font-mono text-lg font-black text-emerald-700">
-                  ₹{(ownerProfile?.wallet?.availableBalance || (stats?.totalEarnings ? Math.round(stats.totalEarnings * 0.9) : 0)).toLocaleString('en-IN')}
-                </span>
-              </div>
-
-              <form onSubmit={handleRequestPayout} className="space-y-4 text-xs font-semibold">
-                <div>
-                  <label className="block text-slate-700 mb-1">Withdrawal Amount (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    min={100}
-                    max={ownerProfile?.wallet?.availableBalance || stats?.totalEarnings || 500000}
-                    value={payoutForm.amount}
-                    onChange={(e) => setPayoutForm({ ...payoutForm, amount: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 font-mono text-base font-bold text-slate-900"
-                    placeholder="Enter amount in INR"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 mb-1">Transfer Destination</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPayoutForm({ ...payoutForm, method: 'UPI' })}
-                      className={`p-2.5 rounded-xl border text-center font-bold transition ${
-                        payoutForm.method === 'UPI'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Instant UPI (GPay/PhonePe)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPayoutForm({ ...payoutForm, method: 'Bank Account' })}
-                      className={`p-2.5 rounded-xl border text-center font-bold transition ${
-                        payoutForm.method === 'Bank Account'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Bank Transfer (NEFT/IMPS)
-                    </button>
-                  </div>
-                </div>
-
-                {payoutForm.method === 'UPI' ? (
-                  <div>
-                    <label className="block text-slate-700 mb-1">UPI ID (VPA)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. mobile@paytm or name@okaxis"
-                      value={payoutForm.upiId}
-                      onChange={(e) => setPayoutForm({ ...payoutForm, upiId: e.target.value })}
-                      className="w-full p-3 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-slate-700 mb-1">Account Holder Name</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="As registered in bank"
-                        value={payoutForm.holderName}
-                        onChange={(e) => setPayoutForm({ ...payoutForm, holderName: e.target.value })}
-                        className="w-full p-2.5 rounded-xl border border-slate-300"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-slate-700 mb-1">Bank Account Number</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Account No."
-                          value={payoutForm.accountNo}
-                          onChange={(e) => setPayoutForm({ ...payoutForm, accountNo: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-300"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-slate-700 mb-1">IFSC Code</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. HDFC0001234"
-                          value={payoutForm.ifsc}
-                          onChange={(e) => setPayoutForm({ ...payoutForm, ifsc: e.target.value.toUpperCase() })}
-                          className="w-full p-2.5 rounded-xl border border-slate-300 uppercase"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setPayoutModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition"
-                  >
-                    Submit Payout Request
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Receipt Modal */}
-        {receiptModalOpen && viewingReceipt && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <h3 className="font-extrabold text-base text-slate-900">
-                    Customer Payment Receipt
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Booking #{viewingReceipt.booking?.bookingId} • {viewingReceipt.booking?.car?.brand} {viewingReceipt.booking?.car?.name}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setReceiptModalOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Client:</span>
-                  <span className="font-bold text-slate-900">
-                    {viewingReceipt.booking?.offlineCustomer?.name || viewingReceipt.booking?.customer?.name} ({viewingReceipt.booking?.offlineCustomer?.phone || viewingReceipt.booking?.customer?.phone})
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Expected Advance:</span>
-                  <span className="font-mono font-black text-emerald-700">
-                    ₹{viewingReceipt.booking?.pricing?.advanceAmount?.toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Customer UTR / Ref No:</span>
-                  <span className="font-mono font-black text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                    {viewingReceipt.utr || 'Not provided'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Screenshot Image Container */}
-              <div className="flex-1 overflow-auto bg-slate-900 rounded-2xl p-2 flex items-center justify-center min-h-[240px]">
-                {viewingReceipt.screenshot ? (
-                  <img
-                    src={viewingReceipt.screenshot}
-                    alt="Payment Receipt"
-                    className="max-h-[50vh] w-auto object-contain rounded-xl shadow-lg"
-                  />
-                ) : (
-                  <div className="text-slate-400 text-xs text-center py-8">
-                    No image screenshot uploaded. Only UTR reference was entered.
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons inside Modal */}
-              <div className="pt-2 flex items-center justify-between gap-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => handleVerifyPayment(viewingReceipt.booking?._id, 'reject')}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 transition"
-                >
-                  ✕ Mismatch / Reject
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReceiptModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleVerifyPayment(viewingReceipt.booking?._id, 'verify')}
-                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition flex items-center gap-1.5"
-                  >
-                    <Check className="w-4 h-4" /> Match UTR &amp; Confirm Order
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Custom Date Availability Modal */}
-        {dateModalOpen && selectedCarForDates && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 block">
-                    CUSTOM DATE AVAILABILITY
-                  </span>
-                  <h3 className="font-extrabold text-base text-slate-900">
-                    {selectedCarForDates.name}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDateModalOpen(false)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900">
-                Mark any specific date as <strong>Not Available</strong>. Customers will see this car marked "Not Available" on that date and will be blocked from booking it.
-              </div>
-
-              {/* Add Date to Block */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">Select Date to Mark Not Available:</label>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={customDateToBlock}
-                    onChange={(e) => setCustomDateToBlock(e.target.value)}
-                    className="flex-1 p-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  <button
-                    type="button"
-                    disabled={!customDateToBlock}
-                    onClick={() => handleToggleCarDate(selectedCarForDates._id, customDateToBlock)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white shadow transition shrink-0"
-                  >
-                    Block Date
-                  </button>
-                </div>
-              </div>
-
-              {/* List of currently blocked dates */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <label className="block text-xs font-bold text-slate-700">
-                  Currently Blocked Dates ({selectedCarForDates.unavailableDates?.length || 0}):
-                </label>
-
-                {(!selectedCarForDates.unavailableDates || selectedCarForDates.unavailableDates.length === 0) ? (
-                  <div className="text-center py-4 text-xs text-slate-400 italic bg-slate-50 rounded-xl">
-                    No custom dates blocked. Car is available every day.
-                  </div>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto space-y-1.5">
-                    {selectedCarForDates.unavailableDates.map((d) => (
-                      <div
-                        key={d}
-                        className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                          <span className="font-bold text-slate-800">{d}</span>
-                          <span className="text-[10px] text-rose-600 font-semibold">(Not Available)</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleCarDate(selectedCarForDates._id, d)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
-                        >
-                          Unblock Date
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setDateModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

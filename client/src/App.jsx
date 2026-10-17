@@ -44,8 +44,8 @@ function FloatingFleetCartButton() {
           {cartCount}
         </span>
       </span>
-      <span className="hidden sm:inline">Wedding Fleet ({cartCount} Cars Selected)</span>
-      <span className="sm:hidden">Fleet ({cartCount})</span>
+      <span className="hidden sm:inline">चयनित गाड़ियाँ ({cartCount} Cars Selected)</span>
+      <span className="sm:hidden">Cars ({cartCount})</span>
     </button>
   );
 }
