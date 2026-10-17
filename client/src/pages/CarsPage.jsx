@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CarCard from '../components/cars/CarCard';
 import LocationAutocomplete from '../components/common/LocationAutocomplete';
+import RouteMapPicker from '../components/common/RouteMapPicker';
 import { resolveCoordinates, calculateHaversineDistance } from '../utils/distanceCalculator';
 import {
   Search,
@@ -14,6 +15,7 @@ import {
   Send,
   CheckCircle2,
   AlertCircle,
+  Map,
 } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
 
@@ -42,6 +44,7 @@ export default function CarsPage({
   const [tripDate, setTripDate] = useState(
     initialFilters.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]
   );
+  const [showMap, setShowMap] = useState(false);
 
   // Query Modal State
   const [queryModalOpen, setQueryModalOpen] = useState(false);
@@ -195,6 +198,18 @@ export default function CarsPage({
               </span>
               <button
                 type="button"
+                onClick={() => setShowMap(!showMap)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 border ${
+                  showMap
+                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                    : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border-slate-700'
+                }`}
+              >
+                <Map className="w-3.5 h-3.5" />
+                <span>{showMap ? 'Hide Map' : 'Interactive Map'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={handleFindNearMe}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1"
               >
@@ -211,6 +226,7 @@ export default function CarsPage({
                 label="Pickup Location (Source)"
                 value={sourceAddress}
                 allowGps={true}
+                onOpenMap={() => setShowMap(true)}
                 iconColor="text-emerald-400"
                 placeholder="Enter Pickup Location"
                 inputClassName="w-full bg-slate-800 border border-slate-700 rounded-2xl px-3.5 py-2.5 text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -230,6 +246,7 @@ export default function CarsPage({
                 label="Drop Location (Destination)"
                 value={destinationAddress}
                 allowGps={false}
+                onOpenMap={() => setShowMap(true)}
                 iconColor="text-rose-400"
                 placeholder="Enter Drop Destination"
                 inputClassName="w-full bg-slate-800 border border-slate-700 rounded-2xl px-3.5 py-2.5 text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -267,6 +284,54 @@ export default function CarsPage({
               </button>
             </div>
           </form>
+
+          {/* Interactive OpenStreetMap & Leaflet Route Picker */}
+          {showMap ? (
+            <div className="mt-5 pt-4 border-t border-slate-800 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                    🗺️ OpenStreetMap &amp; Leaflet Interactive Route
+                  </span>
+                  <span className="text-[11px] text-slate-400 hidden sm:inline">
+                    • Tap on map to set pin, or drag markers to adjust
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMap(false)}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 self-start sm:self-auto"
+                >
+                  ✕ Close Map
+                </button>
+              </div>
+
+              <RouteMapPicker
+                pickupCoords={sourceCoords}
+                dropCoords={destCoords}
+                pickupAddress={sourceAddress}
+                dropAddress={destinationAddress}
+                onPickupChange={({ address, coords }) => {
+                  setSourceAddress(address);
+                  setSourceCoords(coords);
+                }}
+                onDropChange={({ address, coords }) => {
+                  setDestinationAddress(address);
+                  setDestCoords(coords);
+                }}
+                height="380px"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowMap(true)}
+              className="mt-4 w-full py-2.5 px-4 rounded-2xl border border-dashed border-slate-700 hover:border-amber-400/80 text-slate-400 hover:text-amber-400 text-xs font-bold transition flex items-center justify-center gap-2 bg-slate-800/30 hover:bg-slate-800/60"
+            >
+              <Map className="w-4 h-4 text-amber-400" />
+              <span>Need exact location or village? <strong>Tap here to open Interactive Map &amp; drop pins</strong></span>
+            </button>
+          )}
         </div>
 
         {/* Cars List / Results */}

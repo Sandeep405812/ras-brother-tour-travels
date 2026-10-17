@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Search, X, Loader2, Sparkles } from 'lucide-react';
-import { searchPlaces, POPULAR_LOCATIONS } from '../../utils/distanceCalculator';
+import { MapPin, Navigation, Search, X, Loader2, Sparkles, Map } from 'lucide-react';
+import { searchPlacesOSM, detectGpsLocation } from '../../utils/geoService';
+import { POPULAR_LOCATIONS } from '../../utils/distanceCalculator';
 
 export default function LocationAutocomplete({
   value = '',
   onChange,
   onSelectCoords,
-  placeholder = 'Enter city, locality or venue...',
+  onOpenMap,
+  placeholder = 'Enter city, village, locality or street...',
   label = '',
   iconColor = 'text-amber-500',
   allowGps = false,
@@ -18,6 +20,7 @@ export default function LocationAutocomplete({
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [detectingGps, setDetectingGps] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const wrapperRef = useRef(null);
 
   // Sync internal query state with prop value
@@ -36,16 +39,17 @@ export default function LocationAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Debounced search
+  // Debounced search using OpenStreetMap Nominatim & Photon
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
     setLoading(true);
+    setErrorMessage('');
 
     const timer = setTimeout(async () => {
       try {
-        const results = await searchPlaces(query);
+        const results = await searchPlacesOSM(query);
         if (isMounted) {
           setSuggestions(results);
           setLoading(false);
@@ -56,7 +60,7 @@ export default function LocationAutocomplete({
           setLoading(false);
         }
       }
-    }, 250);
+    }, 350); // Compliant debounce
 
     return () => {
       isMounted = false;
@@ -68,6 +72,7 @@ export default function LocationAutocomplete({
     const val = e.target.value;
     setQuery(val);
     setIsOpen(true);
+    setErrorMessage('');
     if (onChange) onChange(val);
   };
 
@@ -78,34 +83,28 @@ export default function LocationAutocomplete({
     if (onSelectCoords && place.coords) onSelectCoords(place.coords);
   };
 
-  const handleGpsDetect = (e) => {
+  const handleGpsDetect = async (e) => {
     e.stopPropagation();
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
     setDetectingGps(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const coords = [pos.coords.longitude, pos.coords.latitude];
-        const label = 'My GPS Location (Current)';
-        setQuery(label);
-        setIsOpen(false);
-        setDetectingGps(false);
-        if (onChange) onChange(label);
-        if (onSelectCoords) onSelectCoords(coords);
-      },
-      (err) => {
-        console.warn('GPS detection failed:', err.message);
-        setDetectingGps(false);
-        alert('Could not detect location. Please type your pickup place.');
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
+    setErrorMessage('');
+
+    try {
+      const loc = await detectGpsLocation();
+      setQuery(loc.address);
+      setIsOpen(false);
+      if (onChange) onChange(loc.address);
+      if (onSelectCoords) onSelectCoords(loc.coords);
+    } catch (err) {
+      setErrorMessage(err.message || 'GPS location could not be determined.');
+      alert(err.message || 'GPS location permission denied. You can select your point directly on the map.');
+    } finally {
+      setDetectingGps(false);
+    }
   };
 
   const handleClear = () => {
     setQuery('');
+    setErrorMessage('');
     if (onChange) onChange('');
     setIsOpen(false);
   };
@@ -117,24 +116,36 @@ export default function LocationAutocomplete({
           <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
             <MapPin className={`w-3.5 h-3.5 ${iconColor}`} /> {label}
           </label>
-          {allowGps && (
-            <button
-              type="button"
-              onClick={handleGpsDetect}
-              disabled={detectingGps}
-              className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 underline transition"
-            >
-              {detectingGps ? (
-                <>
-                  <Loader2 className="w-2.5 h-2.5 animate-spin" /> Detecting GPS...
-                </>
-              ) : (
-                <>
-                  <Navigation className="w-2.5 h-2.5" /> Use Current Location
-                </>
-              )}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onOpenMap && (
+              <button
+                type="button"
+                onClick={onOpenMap}
+                className="text-[10px] font-bold text-slate-300 hover:text-amber-400 flex items-center gap-1 transition"
+                title="Pick exact point on interactive map"
+              >
+                <Map className="w-2.5 h-2.5 text-amber-400" /> Pin on Map
+              </button>
+            )}
+            {allowGps && (
+              <button
+                type="button"
+                onClick={handleGpsDetect}
+                disabled={detectingGps}
+                className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 underline transition disabled:opacity-50"
+              >
+                {detectingGps ? (
+                  <>
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" /> Detecting GPS...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="w-2.5 h-2.5" /> Use Current Location
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -162,20 +173,26 @@ export default function LocationAutocomplete({
         )}
       </div>
 
-      {/* Autocomplete Suggestions Dropdown (Ola / Uber Style) */}
+      {errorMessage && (
+        <div className="mt-1 text-[11px] text-rose-400 font-medium">
+          ⚠️ {errorMessage}
+        </div>
+      )}
+
+      {/* Autocomplete Suggestions Dropdown (OpenStreetMap Nominatim / Photon) */}
       {isOpen && (
         <div className="absolute z-50 left-0 right-0 mt-2 bg-slate-900/98 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-slate-800/80 -webkit-overflow-scrolling-touch">
           <div className="px-3.5 py-2.5 bg-slate-950 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center justify-between sticky top-0 z-10 border-b border-slate-800">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Suggested Locations &amp; Landmarks
+              OpenStreetMap Suggestions (Villages, Cities &amp; Roads)
             </span>
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />}
           </div>
 
           {suggestions.length === 0 && !loading && (
             <div className="p-4 text-xs text-center text-slate-400">
-              No matching locations found. You can press enter or proceed with typed address.
+              No matching locations found. You can proceed with typed address or select point on the map.
             </div>
           )}
 
