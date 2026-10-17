@@ -36,6 +36,8 @@ exports.createBooking = async (req, res, next) => {
       specialRequests = '',
       couponCode,
       offerId,
+      customTotalAmount,
+      customPrice,
       paymentScreenshot = '',
       utrNumber = '',
       paymentMethod = 'cash',
@@ -117,9 +119,10 @@ exports.createBooking = async (req, res, next) => {
 
     let totalAmount = baseAmount + driverCharges + decorationCharges - discountAmount;
     
-    // If negotiated via "Make an Offer"
-    if (customTotalAmount && !isNaN(customTotalAmount) && Number(customTotalAmount) > 0) {
-      totalAmount = Number(customTotalAmount);
+    // If negotiated via "Make an Offer" or custom route fare passed
+    const finalCustomAmount = customTotalAmount || customPrice;
+    if (finalCustomAmount && !isNaN(finalCustomAmount) && Number(finalCustomAmount) > 0) {
+      totalAmount = Number(finalCustomAmount);
     }
 
     // Advance amount calculation (fixed or percentage)
@@ -135,6 +138,9 @@ exports.createBooking = async (req, res, next) => {
     const bookingId = generateBookingId();
     const isOwnerOrAdmin = req.user.role === 'owner' || req.user.role === 'admin';
     const isDirect = Boolean(isDirectBooking && isOwnerOrAdmin);
+
+    const isOnlinePayment = paymentMethod === 'online' || paymentMethod === 'upi';
+    const hasProof = Boolean(paymentScreenshot || (utrNumber && utrNumber.trim().length > 0));
 
     const booking = await Booking.create({
       bookingId,
@@ -164,8 +170,8 @@ exports.createBooking = async (req, res, next) => {
       gstDetails: gstDetails || undefined,
       paymentScreenshot: paymentScreenshot || '',
       utrNumber: utrNumber || '',
-      paymentMethod: paymentMethod === 'online' || paymentMethod === 'upi' ? 'online' : 'cash',
-      paymentVerificationStatus: (paymentMethod === 'online' || paymentMethod === 'upi') && paymentScreenshot ? 'pending_verification' : 'none',
+      paymentMethod: isOnlinePayment ? 'online' : 'cash',
+      paymentVerificationStatus: isOnlinePayment && hasProof ? 'pending_verification' : 'none',
       driverRequired,
       specialRequests,
       pricing: {
@@ -183,7 +189,7 @@ exports.createBooking = async (req, res, next) => {
         ? 'advance_paid'
         : (paymentMethod === 'cash' || paymentMethod === 'cod')
         ? 'pay_on_pickup'
-        : (paymentScreenshot ? 'advance_paid' : 'pending'),
+        : (hasProof ? 'advance_paid' : 'pending'),
       offerId: offerId || undefined,
     });
 
