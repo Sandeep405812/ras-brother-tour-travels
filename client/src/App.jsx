@@ -158,19 +158,7 @@ function MainLayout() {
                   : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
               }`}
             >
-              <span>🏠 Home &amp; Route Search</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigateTo('cars')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                currentPage === 'cars'
-                  ? 'bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <span>🚗 Browse Fleet</span>
+              <span>🚗 Book Your Car</span>
             </button>
 
             <button

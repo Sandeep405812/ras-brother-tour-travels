@@ -39,8 +39,8 @@ export default function Footer({ onNavigate }) {
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('cars')} className="hover:text-amber-400 transition">
-                  Browse All Fleet
+                <button onClick={() => onNavigate('home')} className="hover:text-amber-400 transition">
+                  Book Your Car
                 </button>
               </li>
               <li>
