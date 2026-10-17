@@ -80,8 +80,7 @@ export default function BookingModal({
   if (!isOpen || !car) return null;
 
   const perKmRate = car.pricing?.perKm || 20;
-  const basePrice = car.pricing?.basePrice || 1000;
-  const tripTotal = Math.max(basePrice, Math.round(calculatedDistance * perKmRate));
+  const tripTotal = Math.round(calculatedDistance * perKmRate);
 
   const upiId = 'rasbrother@okaxis';
   const upiPayUrl = `upi://pay?pa=${upiId}&pn=RAS+Brother+Tour+and+Travels&am=${tripTotal}&cu=INR&tn=Ride+Booking+${car.name}`;

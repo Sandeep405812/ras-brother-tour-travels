@@ -220,7 +220,7 @@ exports.createCar = async (req, res, next) => {
     const ownerProfile = await OwnerProfile.findOne({ user: req.user.id });
 
     const perKm = Number(req.body.perKm || req.body.pricing?.perKm || req.body.extraKmRate || 20);
-    const basePrice = Number(req.body.basePrice || req.body.pricing?.basePrice || 1000);
+    const basePrice = Number(req.body.basePrice || req.body.pricing?.basePrice || perKm);
     const perDay = Number(req.body.perDay || req.body.pricing?.perDay || 2000);
 
     const carData = {

@@ -5,10 +5,10 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
   const perKmRate = car.pricing?.perKm || 20;
   const pricePerDay = car.pricing?.perDay || car.pricing?.basePrice || 2000;
 
-  // Calculate fare based on distance if route details provided
+  // Calculate fare directly: distanceKm * perKmRate (Exact calculation)
   const distanceKm = routeDetails?.calculatedDistance || null;
   const calculatedFare = distanceKm
-    ? Math.max(car.pricing?.basePrice || 1000, Math.round(distanceKm * perKmRate))
+    ? Math.round(distanceKm * perKmRate)
     : pricePerDay;
 
   const isUnavailable = Boolean(car.isUnavailableOnDate);

@@ -237,7 +237,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
           perKm: Number(carForm.perKm) || 20,
           extraKmRate: Number(carForm.perKm) || 20,
           perDay: (Number(carForm.perKm) || 20) * 100,
-          basePrice: (Number(carForm.perKm) || 20) * 50,
+          basePrice: Number(carForm.perKm) || 20,
         },
         location: {
           address: carForm.locationAddress.trim(),

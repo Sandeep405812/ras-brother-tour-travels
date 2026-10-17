@@ -99,8 +99,7 @@ exports.createBooking = async (req, res, next) => {
     const distNum = Math.max(1, Number(distanceKm) || 20);
     const perKmRate = car.pricing?.perKm || car.pricing?.extraKmRate || 20;
     const distanceFare = Math.round(distNum * perKmRate);
-    const minBasePrice = car.pricing?.basePrice || 500;
-    let baseAmount = Math.max(minBasePrice, distanceFare);
+    let baseAmount = distanceFare;
     let driverCharges = 0;
     let decorationCharges = 0;
     let discountAmount = 0;
