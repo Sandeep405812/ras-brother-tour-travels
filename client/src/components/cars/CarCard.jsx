@@ -120,53 +120,84 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
           </div>
         </div>
 
-        {/* Pricing & Actions */}
-        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-          <div>
-            <div className="text-[11px] text-slate-500 font-bold uppercase">Rate</div>
-            <div className="text-lg font-black text-slate-900 leading-none">
-              ₹{perKmRate}<span className="text-xs font-semibold text-slate-500">/km</span>
-            </div>
-            {distanceKm && (
-              <div className="text-[11px] font-extrabold text-emerald-600 mt-1">
-                Est: ₹{calculatedFare.toLocaleString('en-IN')} ({distanceKm} km)
+          {/* Transparent Live KM & Fare Breakdown if route calculated */}
+          {distanceKm && (
+            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-2.5 mt-3 text-xs text-emerald-950 space-y-1">
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-[11px] text-emerald-800">कुल अनुमानित किराया:</span>
+                <span className="text-emerald-700 font-black text-sm">₹{calculatedFare.toLocaleString('en-IN')}</span>
               </div>
-            )}
-          </div>
+              <div className="text-[11px] text-emerald-700 flex items-center justify-between pt-0.5 border-t border-emerald-200/60">
+                <span>दूरी हिसाब: {distanceKm} km × ₹{perKmRate}/km</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">✓ कोई छुपा चार्ज नहीं</span>
+              </div>
+            </div>
+          )}
 
-          <div className="flex items-center gap-1.5">
-            {/* Ask Query / Contact Admin Button */}
-            <button
-              type="button"
-              onClick={() => onAskQuery && onAskQuery(car)}
-              className="px-2.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition flex items-center gap-1"
-              title="Ask question / query about this car"
-            >
-              <PhoneCall className="w-3.5 h-3.5 text-amber-600" />
-              <span className="hidden sm:inline">Query</span>
-            </button>
+          {/* Pricing & Actions */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase">Rate</div>
+              <div className="text-lg font-black text-slate-900 leading-none">
+                ₹{perKmRate}<span className="text-xs font-semibold text-slate-500">/km</span>
+              </div>
+            </div>
 
-            {/* Book Now Button */}
-            {isUnavailable ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* WhatsApp 1-Click Direct Chat / Booking Button */}
+              {(() => {
+                const targetPhone = (car.owner?.phone || '9876543210').replace(/\D/g, '');
+                const cleanPhone = targetPhone.startsWith('91') ? targetPhone : `91${targetPhone}`;
+                const waMessage = encodeURIComponent(
+                  `नमस्ते RAS Brother Travels, मुझे यह गाड़ी बुक करनी है:\n🚗 गाड़ी: ${car.brand || ''} ${car.name}\n💰 रेट: ₹${perKmRate}/km\n📍 जगह: ${car.location?.address || 'Deoria'}${distanceKm ? `\n📏 दूरी: ${distanceKm} km (अनुमानित किराया: ₹${calculatedFare})` : ''}\nकृपया बुकिंग की पुष्टि करें।`
+                );
+                const waUrl = `https://wa.me/${cleanPhone}?text=${waMessage}`;
+
+                return (
+                  <a
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1 shadow-sm active:scale-95"
+                    title="WhatsApp पर बात या बुकिंग करें"
+                  >
+                    <span>📱 WhatsApp</span>
+                  </a>
+                );
+              })()}
+
+              {/* Ask Query / Contact Admin Button */}
               <button
                 type="button"
-                disabled
-                className="px-3.5 py-2 rounded-xl text-xs font-black bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
+                onClick={() => onAskQuery && onAskQuery(car)}
+                className="px-2.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition flex items-center gap-1"
+                title="गाड़ी के बारे में सवाल पूछें"
               >
-                Unavailable
+                <PhoneCall className="w-3.5 h-3.5 text-amber-600" />
+                <span className="hidden sm:inline">Query</span>
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onBook && onBook(car, calculatedFare, null, routeDetails)}
-                className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md transition-all duration-200"
-              >
-                Book Now
-              </button>
-            )}
+
+              {/* Book Now Button */}
+              {isUnavailable ? (
+                <button
+                  type="button"
+                  disabled
+                  className="px-3.5 py-2 rounded-xl text-xs font-black bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
+                >
+                  Unavailable
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onBook && onBook(car, calculatedFare, null, routeDetails)}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md transition-all duration-200 active:scale-95"
+                >
+                  Book Now
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

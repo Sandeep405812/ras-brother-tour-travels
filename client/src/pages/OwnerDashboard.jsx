@@ -25,6 +25,9 @@ import {
   X,
   CreditCard,
   Navigation,
+  Bell,
+  BellOff,
+  Volume2,
 } from 'lucide-react';
 import { uploadSingleFile } from '../utils/imageUpload';
 
@@ -64,6 +67,45 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
   // Uploading state
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Sound Notification Alert state (for incoming new bookings)
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Browser Web Audio API Chime Synthesizer (Works 100% reliably without external audio files)
+  const playChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Bell chime tone 1 (D5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now);
+      gain1.gain.setValueAtTime(0.35, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // Bell chime tone 2 (A5)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.14);
+      gain2.gain.setValueAtTime(0.45, now + 0.14);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.14);
+      osc2.stop(now + 0.7);
+    } catch (e) {
+      console.warn('Audio chime warning:', e);
+    }
+  };
+
   // Car Form state - Simple & Intuitive
   const initialCarForm = {
     name: '',
@@ -81,9 +123,9 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
   const [carForm, setCarForm] = useState(initialCarForm);
 
   // Fetch Owner's Cars and Bookings
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const headers = { Authorization: `Bearer ${token}` };
 
       const [carsRes, bookingsRes] = await Promise.all([
@@ -98,20 +140,35 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         setMyFleet(carsData.cars || []);
       }
       if (bookingsData.success) {
-        setOwnerBookings(bookingsData.bookings || []);
+        const newBookings = bookingsData.bookings || [];
+        // Check if there are newly arrived pending bookings
+        if (isBackground && newBookings.length > ownerBookings.length) {
+          const hasPending = newBookings.some((b) => b.status === 'pending');
+          if (hasPending && soundEnabled) {
+            playChime();
+            showToast('🔔 नई बुकिंग आई है! (New Booking Received)', 'success');
+          }
+        }
+        setOwnerBookings(newBookings);
       }
     } catch (err) {
-      showToast('डेटा लोड करने में समस्या आई (Failed to load data)', 'error');
+      if (!isBackground) showToast('डेटा लोड करने में समस्या आई (Failed to load data)', 'error');
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (token) {
       fetchDashboardData();
+
+      // Background check every 25s for new bookings
+      const interval = setInterval(() => {
+        fetchDashboardData(true);
+      }, 25000);
+      return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, ownerBookings.length, soundEnabled]);
 
   // Handle Photo Upload
   const handlePhotoUpload = async (e) => {
@@ -396,6 +453,35 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Sound Notification Alert Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                if (next) playChime();
+                showToast(next ? '🔔 साउंड अलर्ट चालू है (Sound ON)' : '🔕 साउंड म्यूट है (Sound OFF)', 'info');
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
+                soundEnabled
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+              title="नई बुकिंग पर घंटी बजाएं"
+            >
+              {soundEnabled ? (
+                <>
+                  <Bell className="w-4 h-4 text-emerald-400 animate-bounce" />
+                  <span className="hidden sm:inline">साउंड चालू</span>
+                </>
+              ) : (
+                <>
+                  <BellOff className="w-4 h-4" />
+                  <span className="hidden sm:inline">साउंड बंद</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={handleOpenAddCar}
               className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition transform active:scale-95"

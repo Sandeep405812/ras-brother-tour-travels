@@ -4,7 +4,7 @@ import { CompanyProvider } from './context/CompanyContext';
 import { SocketProvider } from './context/SocketContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { CartProvider, useCart } from './context/CartContext';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Smartphone, X } from 'lucide-react';
 
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
@@ -29,6 +29,61 @@ import BookingConfirmationPage from './pages/BookingConfirmationPage';
 import BookingModal from './components/cars/BookingModal';
 import MakeOfferModal from './components/cars/MakeOfferModal';
 import BulkBookingModal from './components/cars/BulkBookingModal';
+
+function FloatingInstallAppButton() {
+  const [deferredPrompt, setDeferredPrompt] = React.useState(null);
+  const [visible, setVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isStandalone) return;
+
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setVisible(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    if (/android|iphone|ipad/i.test(navigator.userAgent || '')) {
+      setVisible(true);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  if (!visible) return null;
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice.outcome === 'accepted') setVisible(false);
+      setDeferredPrompt(null);
+    } else {
+      alert('📲 अपने फोन में RAS Brother ऐप इंस्टॉल करने के लिए:\n\n1. Chrome में: ऊपर 3 डॉट्स (⋮) दबाएं और "Install app" या "Add to Home screen" चुनें।\n2. iPhone (Safari) में: नीचे शेयर बटन (⎋) दबाएं और "Add to Home Screen" चुनें।');
+    }
+  };
+
+  return (
+    <div className="fixed bottom-4 left-4 z-40 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-md text-white border border-amber-500/40 rounded-2xl p-1.5 pr-2.5 shadow-2xl">
+      <button
+        onClick={handleInstall}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:from-amber-400 transition shadow-md"
+      >
+        <Smartphone className="w-3.5 h-3.5" />
+        <span>📲 ऐप इंस्टॉल करें</span>
+      </button>
+      <button
+        onClick={() => setVisible(false)}
+        className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+        title="हटाएं"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
 
 function FloatingFleetCartButton() {
   const { cartCount, setIsCartOpen } = useCart();
@@ -313,6 +368,9 @@ function MainLayout() {
 
       {/* Floating Wedding Fleet Cart Pill Button */}
       <FloatingFleetCartButton />
+
+      {/* Floating PWA Install App Button on Mobile */}
+      <FloatingInstallAppButton />
     </div>
   );
 }

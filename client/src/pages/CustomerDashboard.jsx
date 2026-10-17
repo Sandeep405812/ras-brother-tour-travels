@@ -49,19 +49,18 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
   const [reviewComment, setReviewComment] = useState('');
 
   const handleShareWhatsApp = (b) => {
-    const text = `🚗 *RAS BROTHER TOUR & TRAVELS — OFFICIAL BOOKING PASS*\n\n` +
-      `*Booking ID:* #${b.bookingId}\n` +
-      `*Vehicle:* ${b.car?.brand} ${b.car?.name} (${b.car?.category})\n` +
-      `*Event Type:* ${b.eventType}\n` +
-      `*Event Date:* ${new Date(b.startDate).toLocaleDateString()} (${b.startTime || '10:00 AM'})\n` +
-      `*Reporting Time:* ${b.startTime || '10:00 AM'}\n` +
-      `*Chauffeur:* ${b.chauffeur?.name || 'RAS Uniformed Driver'} (${b.chauffeur?.phone || '+91 98765 43210'})\n` +
-      `*Car Plate:* ${b.chauffeur?.vehiclePlate || 'DL 1C AA 2026'}\n` +
-      `*Pickup Venue:* ${b.pickupLocation?.address}\n` +
-      (b.startOtp ? `*Start Ride OTP:* ${b.startOtp}\n` : '') +
-      `*Advance Paid:* ₹${b.pricing?.advanceAmount?.toLocaleString('en-IN')}\n` +
-      `*Balance at Arrival:* ₹${b.pricing?.remainingAmount?.toLocaleString('en-IN')}\n\n` +
-      `*RAS Brother Tour & Travels — Premium Event Fleet*`;
+    const text = `🚗 *RAS BROTHER TOUR & TRAVELS — बुकिंग रसीद (BOOKING RECEIPT)*\n\n` +
+      `🆔 *बुकिंग आईडी:* #${b.bookingId}\n` +
+      `🚘 *गाड़ी (Car):* ${b.car?.brand || ''} ${b.car?.name || 'Car'}\n` +
+      `📅 *तारीख:* ${new Date(b.startDate).toLocaleDateString('hi-IN')} (${b.startTime || '10:00 AM'})\n` +
+      `🟢 *पिकअप जगह:* ${b.pickupLocation?.address || 'N/A'}\n` +
+      (b.destinationAddress ? `🔴 *ड्रॉप जगह:* ${b.destinationAddress}\n` : '') +
+      (b.distanceKm ? `📏 *कुल दूरी:* ${b.distanceKm} km\n` : '') +
+      `💰 *कुल किराया:* ₹${b.pricing?.totalAmount?.toLocaleString('en-IN')}\n` +
+      `💳 *एडवांस जमा:* ₹${b.pricing?.advanceAmount?.toLocaleString('en-IN')}\n` +
+      `💵 *बाकी रकम:* ₹${(b.pricing?.remainingAmount || 0)?.toLocaleString('en-IN')}\n` +
+      (b.startOtp ? `🔑 *राइड शुरू करने का OTP:* *${b.startOtp}* (गाड़ी आने पर ड्राइवर को बताएं)\n` : '') +
+      `\n✨ *RAS Brother Tour & Travels — सुरक्षित और आरामदायक यात्रा*`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
