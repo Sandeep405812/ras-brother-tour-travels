@@ -143,27 +143,29 @@ export async function reverseGeocode(lat, lon) {
  */
 export async function searchPlacesOSM(query) {
   if (!query || query.trim().length === 0) {
-    return POPULAR_LOCATIONS.slice(0, 8);
+    return POPULAR_LOCATIONS.slice(0, 20);
   }
 
   const cleanQuery = query.trim();
   const lowerQ = cleanQuery.toLowerCase();
+  const queryWords = lowerQ.split(/\s+/).filter(Boolean);
 
-  // Check Cache
+  // Check in-memory Cache
   if (searchCache.has(lowerQ)) {
     return searchCache.get(lowerQ);
   }
 
-  // 1. Check local verified hubs
-  const localMatches = POPULAR_LOCATIONS.filter((loc) =>
-    loc.name.toLowerCase().includes(lowerQ)
-  );
+  // 1. Check local verified Indian hubs (Instant 0ms match)
+  const localMatches = POPULAR_LOCATIONS.filter((loc) => {
+    const locLower = loc.name.toLowerCase();
+    return queryWords.every((w) => locLower.includes(w)) || locLower.includes(lowerQ);
+  });
 
   let onlineMatches = [];
 
-  // 2. Query Photon (Fast OSM-based search for villages, roads, cities)
+  // 2. Query Photon (Fast OSM-based search for villages, colonies, roads, landmarks)
   try {
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=10`;
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=35&lang=en`;
     const res = await fetch(photonUrl);
     if (res.ok) {
       const data = await res.json();
@@ -172,7 +174,7 @@ export async function searchPlacesOSM(query) {
           .filter((f) => {
             const countrycode = (f.properties?.countrycode || '').toLowerCase();
             const country = (f.properties?.country || '').toLowerCase();
-            return countrycode === 'in' || country.includes('india') || !countrycode;
+            return countrycode === 'in' || country.includes('india') || countrycode === '';
           })
           .map((f) => {
             const p = f.properties || {};
@@ -180,26 +182,40 @@ export async function searchPlacesOSM(query) {
             const name = p.name || p.street || p.city || cleanQuery;
 
             const addrParts = [
-              p.street,
-              p.suburb || p.district || p.county,
-              p.city,
+              p.street && p.street !== name ? p.street : '',
+              p.district || p.suburb || p.locality,
+              p.county,
+              p.city && p.city !== name ? p.city : '',
               p.state,
               p.postcode,
             ].filter(Boolean);
 
-            const fullAddress = addrParts.length > 0 ? addrParts.join(', ') : (p.country || 'India');
+            const fullAddress =
+              addrParts.length > 0 ? addrParts.join(', ') : p.country || 'India';
 
             let icon = '📍';
             let type = p.osm_value || p.type || 'place';
-            if (p.osm_key === 'aeroway' || name.toLowerCase().includes('airport')) {
+            const nameLower = name.toLowerCase();
+
+            if (p.osm_key === 'aeroway' || nameLower.includes('airport')) {
               icon = '✈️';
               type = 'airport';
-            } else if (p.osm_key === 'railway' || name.toLowerCase().includes('station')) {
+            } else if (
+              p.osm_key === 'railway' ||
+              nameLower.includes('station') ||
+              nameLower.includes('junction')
+            ) {
               icon = '🚆';
               type = 'station';
-            } else if (p.osm_key === 'tourism' || name.toLowerCase().includes('hotel')) {
+            } else if (p.osm_key === 'tourism' || nameLower.includes('hotel') || nameLower.includes('resort')) {
               icon = '🏨';
               type = 'hotel';
+            } else if (p.osm_value === 'village' || p.osm_value === 'hamlet') {
+              icon = '🏡';
+              type = 'village';
+            } else if (nameLower.includes('sector') || nameLower.includes('colony') || nameLower.includes('nagar') || nameLower.includes('vihar')) {
+              icon = '🏘️';
+              type = 'colony';
             }
 
             return {
@@ -218,11 +234,11 @@ export async function searchPlacesOSM(query) {
     console.warn('Photon lookup failed:', err.message);
   }
 
-  // 3. Fallback to Nominatim if results are sparse
-  if (onlineMatches.length < 3) {
+  // 3. Fallback to OpenStreetMap Nominatim if results are sparse
+  if (onlineMatches.length < 15 && cleanQuery.length >= 2) {
     try {
       await throttleNominatim();
-      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery)}&countrycodes=in&limit=8&addressdetails=1`;
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery)}&countrycodes=in&limit=15&addressdetails=1`;
       const res = await fetch(nomUrl, {
         headers: {
           'Accept-Language': 'en,hi',
@@ -255,31 +271,33 @@ export async function searchPlacesOSM(query) {
     }
   }
 
-  // Combine and deduplicate
+  // Combine and deduplicate smartly by name + address
   const seen = new Set();
   const finalResults = [];
 
   for (const item of [...localMatches, ...onlineMatches]) {
-    const key = `${item.name.toLowerCase()}-${item.coords?.[0]?.toFixed(2)}-${item.coords?.[1]?.toFixed(2)}`;
+    const key = `${item.name.toLowerCase().trim()}|${(item.fullAddress || '').toLowerCase().trim()}`;
     if (!seen.has(key)) {
       seen.add(key);
       finalResults.push(item);
     }
   }
 
-  // If completely empty, return typed query with approximate fallback
-  const results =
-    finalResults.length > 0
-      ? finalResults.slice(0, 10)
-      : [
-          {
-            name: cleanQuery,
-            fullAddress: 'Search location on map, India',
-            type: 'custom',
-            icon: '📍',
-            coords: resolveCoordinates(cleanQuery),
-          },
-        ];
+  // Always append custom address option so user can always pick their exact typed location
+  const customOption = {
+    name: cleanQuery,
+    fullAddress: 'Use custom location • Tap to fine-tune pin on map',
+    type: 'custom',
+    icon: '📍',
+    coords: resolveCoordinates(cleanQuery),
+  };
+  const hasExact = finalResults.some((r) => r.name.toLowerCase() === lowerQ);
+  if (!hasExact) {
+    finalResults.push(customOption);
+  }
+
+  // Return up to 25 comprehensive results
+  const results = finalResults.slice(0, 25);
 
   searchCache.set(lowerQ, results);
   try {

@@ -56,11 +56,11 @@ export default function LocationAutocomplete({
         }
       } catch (err) {
         if (isMounted) {
-          setSuggestions(POPULAR_LOCATIONS.slice(0, 6));
+          setSuggestions(POPULAR_LOCATIONS.slice(0, 15));
           setLoading(false);
         }
       }
-    }, 350); // Compliant debounce
+    }, 250); // Snappy Ola/Uber style debounce
 
     return () => {
       isMounted = false;
@@ -181,11 +181,11 @@ export default function LocationAutocomplete({
 
       {/* Autocomplete Suggestions Dropdown (OpenStreetMap Nominatim / Photon) */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-2 bg-slate-900/98 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-slate-800/80 -webkit-overflow-scrolling-touch">
+        <div className="absolute z-50 left-0 right-0 mt-2 bg-slate-900/98 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-96 overflow-y-auto divide-y divide-slate-800/80 -webkit-overflow-scrolling-touch">
           <div className="px-3.5 py-2.5 bg-slate-950 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center justify-between sticky top-0 z-10 border-b border-slate-800">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              OpenStreetMap Suggestions (Villages, Cities &amp; Roads)
+              Location Suggestions ({suggestions.length} Found)
             </span>
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />}
           </div>
