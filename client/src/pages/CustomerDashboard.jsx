@@ -400,18 +400,18 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
                       )}
 
                       {/* Start Ride OTP Box */}
-                      {b.startOtp && (b.status === 'confirmed' || b.status === 'in_progress') && (
+                      {b.startOtp && b.status !== 'cancelled' && b.status !== 'rejected' && (
                         <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300 rounded-2xl flex items-center justify-between">
                           <div>
                             <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block flex items-center gap-1">
-                              <Key className="w-3 h-3 text-amber-600" /> Start Ride OTP
+                              <Key className="w-3 h-3 text-amber-600" /> Ride Verification OTP
                             </span>
-                            <span className="font-mono text-xl font-black text-amber-950 tracking-widest">
+                            <span className="font-mono text-2xl font-black text-amber-950 tracking-widest">
                               {b.startOtp}
                             </span>
                           </div>
-                          <div className="text-[10px] font-semibold text-amber-800 max-w-[160px] text-right">
-                            Tell driver this OTP when car arrives to start trip.
+                          <div className="text-[10px] font-semibold text-amber-800 max-w-[170px] text-right">
+                            Share this OTP with your driver on ride day for verification.
                           </div>
                         </div>
                       )}

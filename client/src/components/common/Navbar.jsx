@@ -105,22 +105,6 @@ export default function Navbar({ onNavigate, currentPage }) {
 
           {/* Right Action Area */}
           <div className="hidden lg:flex items-center gap-3">
-            {/* Wedding Fleet Cart Button */}
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2.5 rounded-full text-slate-300 hover:text-amber-400 hover:bg-slate-800 transition flex items-center gap-1.5"
-              title="Wedding Fleet Cart"
-            >
-              <ShoppingCart className="w-5 h-5 text-amber-400" />
-              {cartCount > 0 ? (
-                <span className="bg-amber-400 text-slate-950 font-black text-[11px] px-2 py-0.5 rounded-full shadow-md animate-pulse">
-                  {cartCount} Cars
-                </span>
-              ) : (
-                <span className="text-xs text-slate-400 font-semibold hidden xl:inline">Fleet Cart</span>
-              )}
-            </button>
 
             {isAuthenticated ? (
               <>
@@ -324,21 +308,8 @@ export default function Navbar({ onNavigate, currentPage }) {
             )}
           </div>
 
-          {/* Mobile Menu Button & Fleet Cart */}
+          {/* Mobile Menu Button & User Avatar */}
           <div className="flex lg:hidden items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2 rounded-xl text-slate-300 hover:text-amber-400 hover:bg-slate-800 transition"
-              title="Wedding Fleet Cart"
-            >
-              <ShoppingCart className="w-5 h-5 text-amber-400" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
-                  {cartCount}
-                </span>
-              )}
-            </button>
 
             {isAuthenticated && (
               <button

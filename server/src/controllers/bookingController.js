@@ -59,10 +59,24 @@ exports.createBooking = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'End date cannot be prior to start date.' });
     }
 
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+
+    // Check if owner marked this car unavailable on any date in range
+    if (Array.isArray(car.unavailableDates) && car.unavailableDates.length > 0) {
+      const isBlocked = car.unavailableDates.some((d) => d >= startStr && d <= endStr);
+      if (isBlocked) {
+        return res.status(409).json({
+          success: false,
+          message: `This car has been marked NOT AVAILABLE by the owner on ${startStr}. Please choose another date or car.`,
+        });
+      }
+    }
+
     // Backend-level Double Booking Prevention (Collision Detection)
     const existingConflict = await Booking.findOne({
       car: carId,
-      status: { $in: ['confirmed', 'in_progress'] },
+      status: { $in: ['confirmed', 'in_progress', 'pending'] },
       $or: [
         { startDate: { $lte: end }, endDate: { $gte: start } },
       ],
@@ -71,7 +85,7 @@ exports.createBooking = async (req, res, next) => {
     if (existingConflict) {
       return res.status(409).json({
         success: false,
-        message: `This vehicle is already reserved for the selected date range (${new Date(existingConflict.startDate).toLocaleDateString()} to ${new Date(existingConflict.endDate).toLocaleDateString()}). Please choose alternate dates or browse another premium car.`,
+        message: `This car is ALREADY BOOKED for ${startStr}. Please choose another date or browse a different car.`,
       });
     }
 
@@ -79,17 +93,14 @@ exports.createBooking = async (req, res, next) => {
     const diffTime = Math.abs(end - start);
     const durationDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-    // Distance Fare Calculation (Ola/Uber style)
-    const distNum = Number(distanceKm) || 0;
-    const includedKmPerDay = 80;
-    const totalIncludedKm = includedKmPerDay * durationDays;
-    const extraKm = Math.max(0, distNum - totalIncludedKm);
-    const extraKmCharge = extraKm * (car.pricing?.extraKmRate || 15);
-
-    // Pricing calculation
-    let baseAmount = (car.pricing.perDay || car.pricing.basePrice) * durationDays + extraKmCharge;
-    let driverCharges = driverRequired ? (car.pricing.driverCharges || 500) * durationDays : 0;
-    let decorationCharges = decorationRequired ? (car.pricing.decorationCharges || 1500) : 0;
+    // Simple Transparent Distance Fare Calculation (Distance * Rate per KM)
+    const distNum = Math.max(1, Number(distanceKm) || 20);
+    const perKmRate = car.pricing?.perKm || car.pricing?.extraKmRate || 20;
+    const distanceFare = Math.round(distNum * perKmRate);
+    const minBasePrice = car.pricing?.basePrice || 500;
+    let baseAmount = Math.max(minBasePrice, distanceFare);
+    let driverCharges = 0;
+    let decorationCharges = 0;
     let discountAmount = 0;
 
     // Check Coupon if applied
@@ -680,6 +691,40 @@ exports.createBulkBooking = async (req, res, next) => {
       totalFleetAdvance,
       count: createdBookings.length,
       bookings: createdBookings,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Customer Car Booking Inquiry / Contact Admin
+// @route POST /api/bookings/query
+exports.createBookingQuery = async (req, res, next) => {
+  try {
+    const { carId, name, phone, message, date } = req.body;
+    let carName = 'Car Rental Service';
+    if (carId) {
+      const car = await Car.findById(carId);
+      if (car) carName = `${car.brand || ''} ${car.name}`;
+    }
+
+    // Notify all Admins
+    const admins = await User.find({ role: 'admin' });
+    const notifications = admins.map((admin) => ({
+      user: admin._id,
+      title: `📞 Booking Query: ${name || 'Customer'}`,
+      message: `Customer Inquiry from ${name || 'User'} (${phone || 'N/A'}) for ${carName} on ${date || 'Flexible Date'}: "${message || 'Customer requested car information / pricing'}"`,
+      type: 'query',
+      link: '/admin',
+    }));
+
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+
+    res.json({
+      success: true,
+      message: 'Your query has been sent to the Admin team. We will call/contact you shortly!',
     });
   } catch (error) {
     next(error);

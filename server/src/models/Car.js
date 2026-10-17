@@ -17,12 +17,12 @@ const carSchema = new mongoose.Schema({
   },
   brand: {
     type: String,
-    required: [true, 'Brand is required'],
+    default: 'Standard',
     trim: true,
   },
   model: {
     type: String,
-    required: [true, 'Model is required'],
+    default: 'Latest',
     trim: true,
   },
   variant: {
@@ -31,25 +31,29 @@ const carSchema = new mongoose.Schema({
   },
   year: {
     type: Number,
-    required: [true, 'Manufacturing year is required'],
+    default: 2024,
   },
   color: {
     type: String,
-    required: [true, 'Color is required'],
+    default: 'White',
   },
   seatingCapacity: {
     type: Number,
-    required: [true, 'Seating capacity is required'],
+    default: 5,
   },
   fuelType: {
     type: String,
     enum: ['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid'],
-    default: 'Petrol',
+    default: 'Diesel',
+  },
+  fuelIncluded: {
+    type: Boolean,
+    default: true, // true = Fuel Included, false = Fuel Extra Charge
   },
   transmission: {
     type: String,
     enum: ['Automatic', 'Manual'],
-    default: 'Automatic',
+    default: 'Manual',
   },
   isAC: {
     type: Boolean,
@@ -57,12 +61,11 @@ const carSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['Luxury', 'Premium', 'Sedan', 'SUV', 'Vintage', 'Wedding Special', 'Party Car', 'Budget'],
-    required: [true, 'Car category is required'],
+    default: 'Sedan',
   },
   description: {
     type: String,
-    required: [true, 'Description is required'],
+    default: 'Well maintained, verified chauffeur driven car.',
   },
   features: [{
     type: String,
@@ -81,13 +84,14 @@ const carSchema = new mongoose.Schema({
     default: '',
   },
   pricing: {
-    basePrice: { type: Number, required: true },
+    perKm: { type: Number, default: 20 }, // ₹20/km
+    basePrice: { type: Number, default: 1000 },
     perHour: { type: Number, default: 0 },
-    perDay: { type: Number, required: true },
-    extraKmRate: { type: Number, default: 15 },
-    driverCharges: { type: Number, default: 500 },
+    perDay: { type: Number, default: 2000 },
+    extraKmRate: { type: Number, default: 20 },
+    driverCharges: { type: Number, default: 0 },
     nightCharges: { type: Number, default: 300 },
-    decorationCharges: { type: Number, default: 1500 },
+    decorationCharges: { type: Number, default: 0 },
     additionalServices: [{
       name: String,
       price: Number,
@@ -104,6 +108,13 @@ const carSchema = new mongoose.Schema({
       default: 20, // 20% or ₹1,000 fixed
     },
   },
+  paymentMethods: {
+    type: [String],
+    default: ['cod', 'online'],
+  },
+  unavailableDates: [{
+    type: String, // format: 'YYYY-MM-DD'
+  }],
   location: {
     type: {
       type: String,
@@ -126,7 +137,7 @@ const carSchema = new mongoose.Schema({
   },
   serviceRadiusKm: {
     type: Number,
-    default: 50,
+    default: 100,
   },
   isAvailable: {
     type: Boolean,

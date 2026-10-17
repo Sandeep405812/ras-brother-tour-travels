@@ -1,5 +1,6 @@
 const Car = require('../models/Car');
 const OwnerProfile = require('../models/OwnerProfile');
+const Booking = require('../models/Booking');
 
 // Helper function for Haversine distance in KM with driving factor
 const computeDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -115,21 +116,8 @@ exports.getAllCars = async (req, res, next) => {
 
     let total = await Car.countDocuments(query);
 
-    // If strict radius query returned 0 cars, fallback to returning all active cars
-    // so user always gets nearest car suggestions rather than an empty page
-    if (hasCoords && cars.length === 0) {
-      delete query['location.coordinates'];
-      cars = await Car.find(query)
-        .populate('owner', 'name phone email avatar')
-        .populate('ownerProfile', 'businessName rating totalReviews isAvailable')
-        .sort(sortOption)
-        .skip(skip)
-        .limit(Number(limit));
-      total = await Car.countDocuments(query);
-    }
-
-    // Map cars and attach distanceKm from user's current GPS location
-    const processedCars = cars.map((c) => {
+    // Map cars and attach distanceKm from user's current GPS location / Source
+    let processedCars = cars.map((c) => {
       const carObj = c.toObject();
       if (hasCoords && carObj.location?.coordinates?.length === 2) {
         const carLng = carObj.location.coordinates[0];
@@ -138,20 +126,61 @@ exports.getAllCars = async (req, res, next) => {
       } else {
         carObj.distanceKm = null;
       }
+      carObj.isUnavailableOnDate = false;
+      carObj.unavailableReason = '';
       return carObj;
     });
 
-    // If user requested nearest / near me sort, sort by calculated distance
-    if (hasCoords && (sort === 'nearest' || sort === 'distance')) {
+    // CRITICAL USER REQUIREMENT:
+    // "Customer me source to destination ke accordind jo source se nearest car ho usko suggest kr do 100 km se jyda dur car ko mt suggest kro"
+    if (hasCoords) {
+      processedCars = processedCars.filter((c) => c.distanceKm !== null && c.distanceKm <= 100);
+      // Sort nearest to farthest
       processedCars.sort((a, b) => (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999));
+    }
+
+    // CHECK DATE AVAILABILITY IF DATE SPECIFIED
+    // "Agar koi user same date pr same car book kr rha ho jo alredy book ho toh show kr do alredy booked"
+    // "koi car dale owner toh uske pas ye authority ho ki kisi custom date pr avilable nhi hai to us din not avilable show kr de"
+    if (req.query.date && processedCars.length > 0) {
+      const travelDateStr = String(req.query.date).split('T')[0];
+      const travelDate = new Date(travelDateStr);
+      const startOfDay = new Date(travelDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(travelDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Find all bookings for these cars on that travel date
+      const activeBookings = await Booking.find({
+        car: { $in: processedCars.map((c) => c._id) },
+        status: { $in: ['confirmed', 'in_progress', 'pending'] },
+        startDate: { $lte: endOfDay },
+        endDate: { $gte: startOfDay },
+      }).select('car');
+
+      const bookedCarIds = new Set(activeBookings.map((b) => b.car.toString()));
+
+      processedCars = processedCars.map((carObj) => {
+        // 1. Check if owner marked this date unavailable
+        if (Array.isArray(carObj.unavailableDates) && carObj.unavailableDates.includes(travelDateStr)) {
+          carObj.isUnavailableOnDate = true;
+          carObj.unavailableReason = 'Not Available (Marked by Owner)';
+        }
+        // 2. Check if already booked
+        else if (bookedCarIds.has(carObj._id.toString())) {
+          carObj.isUnavailableOnDate = true;
+          carObj.unavailableReason = 'Already Booked on this date';
+        }
+        return carObj;
+      });
     }
 
     res.json({
       success: true,
       count: processedCars.length,
-      total,
+      total: processedCars.length,
       page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      totalPages: Math.ceil(processedCars.length / Number(limit)) || 1,
       cars: processedCars,
     });
   } catch (error) {
@@ -190,10 +219,39 @@ exports.createCar = async (req, res, next) => {
   try {
     const ownerProfile = await OwnerProfile.findOne({ user: req.user.id });
 
+    const perKm = Number(req.body.perKm || req.body.pricing?.perKm || req.body.extraKmRate || 20);
+    const basePrice = Number(req.body.basePrice || req.body.pricing?.basePrice || 1000);
+    const perDay = Number(req.body.perDay || req.body.pricing?.perDay || 2000);
+
     const carData = {
       ...req.body,
       owner: req.user.id,
       ownerProfile: ownerProfile ? ownerProfile._id : undefined,
+      brand: req.body.brand || 'Standard',
+      model: req.body.model || '2024',
+      variant: req.body.variant || '',
+      year: Number(req.body.year || 2024),
+      color: req.body.color || 'White',
+      seatingCapacity: Number(req.body.seatingCapacity || 5),
+      fuelType: req.body.fuelType || 'Diesel',
+      fuelIncluded: req.body.fuelIncluded !== undefined ? Boolean(req.body.fuelIncluded) : true,
+      description: req.body.description || 'Verified chauffeur driven vehicle.',
+      images: {
+        main: req.body.mainImage || req.body.images?.main || '/brand/ras-logo-primary.svg',
+        interior: req.body.interiorImage || req.body.images?.interior || '',
+        gallery: Array.isArray(req.body.gallery) ? req.body.gallery : [],
+      },
+      pricing: {
+        perKm,
+        extraKmRate: perKm,
+        basePrice,
+        perDay,
+        driverCharges: 0,
+        nightCharges: 300,
+        decorationCharges: 0,
+      },
+      paymentMethods: req.body.paymentMethods || ['cod', 'online'],
+      unavailableDates: Array.isArray(req.body.unavailableDates) ? req.body.unavailableDates : [],
     };
 
     // Manual location & city setting
@@ -257,6 +315,19 @@ exports.updateCar = async (req, res, next) => {
     });
 
     // Support flat perDay or nested pricing
+    if (updates.perKm !== undefined) {
+      updateDoc['pricing.perKm'] = Number(updates.perKm);
+      updateDoc['pricing.extraKmRate'] = Number(updates.perKm);
+    }
+    if (updates.fuelIncluded !== undefined) {
+      updateDoc.fuelIncluded = Boolean(updates.fuelIncluded);
+    }
+    if (updates.unavailableDates !== undefined && Array.isArray(updates.unavailableDates)) {
+      updateDoc.unavailableDates = updates.unavailableDates;
+    }
+    if (updates.paymentMethods !== undefined && Array.isArray(updates.paymentMethods)) {
+      updateDoc.paymentMethods = updates.paymentMethods;
+    }
     if (updates.perDay !== undefined) {
       updateDoc['pricing.perDay'] = Number(updates.perDay);
       updateDoc['pricing.basePrice'] = Number(updates.perDay);
@@ -425,6 +496,57 @@ exports.getMyFleet = async (req, res, next) => {
       success: true,
       count: cars.length,
       cars,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Toggle Car Custom Date Availability (Owner only)
+// @route PUT /api/cars/:id/toggle-date
+exports.toggleCarDate = async (req, res, next) => {
+  try {
+    const { date } = req.body;
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid date (YYYY-MM-DD).' });
+    }
+
+    const car = await Car.findById(req.params.id);
+    if (!car) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+    }
+
+    const isOwner = car.owner.toString() === req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this vehicle.' });
+    }
+
+    if (!Array.isArray(car.unavailableDates)) {
+      car.unavailableDates = [];
+    }
+
+    const dateStr = String(date).split('T')[0];
+    const index = car.unavailableDates.indexOf(dateStr);
+    let isNowBlocked = false;
+
+    if (index > -1) {
+      car.unavailableDates.splice(index, 1);
+      isNowBlocked = false;
+    } else {
+      car.unavailableDates.push(dateStr);
+      isNowBlocked = true;
+    }
+
+    await car.save();
+
+    res.json({
+      success: true,
+      message: isNowBlocked
+        ? `Car marked NOT AVAILABLE on ${dateStr}`
+        : `Car marked AVAILABLE on ${dateStr}`,
+      isUnavailable: isNowBlocked,
+      unavailableDates: car.unavailableDates,
     });
   } catch (error) {
     next(error);

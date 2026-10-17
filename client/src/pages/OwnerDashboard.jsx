@@ -94,6 +94,11 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
     holderName: '',
   });
 
+  // Custom Date Availability Modal State
+  const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [selectedCarForDates, setSelectedCarForDates] = useState(null);
+  const [customDateToBlock, setCustomDateToBlock] = useState('');
+
   // Upload progress indicators
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingInterior, setUploadingInterior] = useState(false);
@@ -101,32 +106,35 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
   // Add Car Form state
   const [carForm, setCarForm] = useState({
     name: '',
-    brand: '',
-    model: '',
+    brand: 'Standard',
+    model: 'Latest',
     variant: '',
     year: 2024,
-    color: 'Obsidian Black',
+    color: 'White',
     seatingCapacity: 5,
-    fuelType: 'Petrol',
-    transmission: 'Automatic',
+    fuelType: 'Diesel',
+    fuelIncluded: true, // Fuel Included vs Fuel Extra Charge
+    paymentMethods: ['cod', 'online'],
+    transmission: 'Manual',
     isAC: true,
-    category: 'Wedding Special',
-    description: '',
+    category: 'Sedan',
+    description: 'Well maintained, verified chauffeur driven vehicle.',
     mainImage: '',
     interiorImage: '',
-    basePrice: 5000,
+    perKm: 20, // Default ₹20/km
+    basePrice: 1000,
     perHour: 800,
-    perDay: 5000,
+    perDay: 2000,
     extraKmRate: 20,
-    driverCharges: 600,
-    nightCharges: 400,
-    decorationCharges: 1500,
+    driverCharges: 0,
+    nightCharges: 300,
+    decorationCharges: 0,
     advanceType: 'percentage',
     advanceValue: 20,
-    address: 'Noida Sector 18',
-    city: 'Noida',
-    serviceRadiusKm: 50,
-    weddingSpecial: true,
+    address: 'Delhi NCR',
+    city: 'Delhi NCR',
+    serviceRadiusKm: 100,
+    weddingSpecial: false,
   });
 
   // KYC Form state
@@ -402,6 +410,37 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
     }
   };
 
+  // Handle Toggle Custom Date Availability
+  const handleToggleCarDate = async (carId, dateStr) => {
+    if (!dateStr) return;
+    try {
+      const res = await fetch(`/api/cars/${carId}/toggle-date`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ date: dateStr }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, 'success');
+        if (selectedCarForDates && selectedCarForDates._id === carId) {
+          setSelectedCarForDates((prev) => ({
+            ...prev,
+            unavailableDates: data.unavailableDates,
+          }));
+        }
+        setCustomDateToBlock('');
+        fetchOwnerData();
+      } else {
+        showToast(data.message || 'Failed to update date availability', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   // Add Car Submission
   const handleAddCarSubmit = async (e) => {
     e.preventDefault();
@@ -414,38 +453,41 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
         },
         body: JSON.stringify({
           name: carForm.name,
-          brand: carForm.brand,
-          model: carForm.model,
-          variant: carForm.variant,
-          year: Number(carForm.year),
-          color: carForm.color,
-          seatingCapacity: Number(carForm.seatingCapacity),
-          fuelType: carForm.fuelType,
-          transmission: carForm.transmission,
-          isAC: carForm.isAC,
-          category: carForm.category,
-          description: carForm.description,
+          brand: carForm.brand || 'Standard',
+          model: carForm.model || carForm.name,
+          variant: carForm.variant || '',
+          year: Number(carForm.year) || 2024,
+          color: carForm.color || 'White',
+          seatingCapacity: Number(carForm.seatingCapacity) || 5,
+          fuelType: carForm.fuelType || 'Diesel',
+          fuelIncluded: carForm.fuelIncluded !== false,
+          paymentMethods: carForm.paymentMethods || ['cod', 'online'],
+          transmission: carForm.transmission || 'Manual',
+          isAC: carForm.isAC !== false,
+          category: carForm.category || 'Sedan',
+          description: carForm.description || 'Well maintained, verified chauffeur driven vehicle.',
           images: {
             main: carForm.mainImage || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
             interior: carForm.interiorImage || '',
           },
           pricing: {
-            basePrice: Number(carForm.basePrice),
-            perHour: Number(carForm.perHour),
-            perDay: Number(carForm.perDay),
-            extraKmRate: Number(carForm.extraKmRate),
-            driverCharges: Number(carForm.driverCharges),
-            nightCharges: Number(carForm.nightCharges),
-            decorationCharges: Number(carForm.decorationCharges),
+            perKm: Number(carForm.perKm || 20),
+            basePrice: Number(carForm.basePrice || 1000),
+            perHour: Number(carForm.perHour || 800),
+            perDay: Number(carForm.perDay || 2000),
+            extraKmRate: Number(carForm.perKm || 20),
+            driverCharges: Number(carForm.driverCharges || 0),
+            nightCharges: Number(carForm.nightCharges || 300),
+            decorationCharges: Number(carForm.decorationCharges || 0),
           },
           advancePayment: {
-            type: carForm.advanceType,
-            value: Number(carForm.advanceValue),
+            type: carForm.advanceType || 'percentage',
+            value: Number(carForm.advanceValue || 20),
           },
-          weddingSpecial: carForm.weddingSpecial,
-          address: carForm.address,
+          weddingSpecial: carForm.weddingSpecial || false,
+          address: carForm.address || 'Delhi NCR',
           city: carForm.city || 'Delhi NCR',
-          serviceRadiusKm: Number(carForm.serviceRadiusKm || 50),
+          serviceRadiusKm: Number(carForm.serviceRadiusKm || 100),
         }),
       });
 
@@ -467,28 +509,31 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
     setEditingCar({
       _id: car._id,
       name: car.name,
-      brand: car.brand,
-      model: car.model,
+      brand: car.brand || 'Standard',
+      model: car.model || car.name,
       variant: car.variant || '',
-      year: car.year,
-      color: car.color,
-      seatingCapacity: car.seatingCapacity,
-      fuelType: car.fuelType,
-      transmission: car.transmission,
-      isAC: car.isAC,
-      category: car.category,
-      description: car.description,
+      year: car.year || 2024,
+      color: car.color || 'White',
+      seatingCapacity: car.seatingCapacity || 5,
+      fuelType: car.fuelType || 'Diesel',
+      fuelIncluded: car.fuelIncluded !== false,
+      paymentMethods: car.paymentMethods || ['cod', 'online'],
+      transmission: car.transmission || 'Manual',
+      isAC: car.isAC !== false,
+      category: car.category || 'Sedan',
+      description: car.description || '',
       mainImage: car.images?.main || '',
       interiorImage: car.images?.interior || '',
-      perDay: car.pricing?.perDay || car.pricing?.basePrice,
-      driverCharges: car.pricing?.driverCharges || 500,
-      decorationCharges: car.pricing?.decorationCharges || 1500,
-      extraKmRate: car.pricing?.extraKmRate || 20,
+      perKm: car.pricing?.perKm || 20,
+      perDay: car.pricing?.perDay || car.pricing?.basePrice || 2000,
+      driverCharges: car.pricing?.driverCharges || 0,
+      decorationCharges: car.pricing?.decorationCharges || 0,
+      extraKmRate: car.pricing?.perKm || 20,
       advanceType: car.advancePayment?.type || 'percentage',
       advanceValue: car.advancePayment?.value || 20,
-      address: car.location?.address || 'Noida Sector 18',
+      address: car.location?.address || 'Delhi NCR',
       city: car.location?.city || 'Delhi NCR',
-      serviceRadiusKm: car.serviceRadiusKm || 50,
+      serviceRadiusKm: car.serviceRadiusKm || 100,
       isAvailable: car.isAvailable !== false,
       weddingSpecial: car.weddingSpecial || false,
     });
@@ -516,6 +561,8 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
           color: editingCar.color,
           seatingCapacity: Number(editingCar.seatingCapacity),
           fuelType: editingCar.fuelType,
+          fuelIncluded: editingCar.fuelIncluded !== false,
+          paymentMethods: editingCar.paymentMethods || ['cod', 'online'],
           transmission: editingCar.transmission,
           isAC: editingCar.isAC,
           category: editingCar.category,
@@ -525,11 +572,12 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
             interior: editingCar.interiorImage,
           },
           pricing: {
-            basePrice: Number(editingCar.perDay),
-            perDay: Number(editingCar.perDay),
-            extraKmRate: Number(editingCar.extraKmRate),
-            driverCharges: Number(editingCar.driverCharges),
-            decorationCharges: Number(editingCar.decorationCharges),
+            perKm: Number(editingCar.perKm || 20),
+            basePrice: Number(editingCar.perDay || 1000),
+            perDay: Number(editingCar.perDay || 2000),
+            extraKmRate: Number(editingCar.perKm || 20),
+            driverCharges: Number(editingCar.driverCharges || 0),
+            decorationCharges: Number(editingCar.decorationCharges || 0),
           },
           advancePayment: {
             type: editingCar.advanceType,
@@ -537,7 +585,7 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
           },
           address: editingCar.address,
           city: editingCar.city,
-          serviceRadiusKm: Number(editingCar.serviceRadiusKm || 50),
+          serviceRadiusKm: Number(editingCar.serviceRadiusKm || 100),
           isAvailable: editingCar.isAvailable,
           weddingSpecial: editingCar.weddingSpecial,
         }),
@@ -854,27 +902,61 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
                     <p className="text-xs text-slate-500">{c.year} • {c.fuelType} • {c.transmission} • {c.seatingCapacity} Seats</p>
 
                     <div className="mt-3 p-2.5 rounded-xl bg-slate-50 text-xs flex justify-between font-bold text-slate-800">
-                      <span>Daily: ₹{c.pricing?.perDay?.toLocaleString('en-IN')}</span>
-                      <span className="text-emerald-700">Advance: {c.advancePayment?.value}{c.advancePayment?.type === 'percentage' ? '%' : ' INR'}</span>
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Rate</div>
+                        <div className="text-sm font-black text-slate-900">₹{c.pricing?.perKm || 20}/km</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 uppercase">Fuel Status</div>
+                        <div className="text-[11px] font-bold">
+                          {c.fuelIncluded !== false ? (
+                            <span className="text-emerald-700">🟢 Fuel Included</span>
+                          ) : (
+                            <span className="text-amber-700">⛽ Fuel Extra</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+
+                    <div className="mt-2 text-xs text-slate-500 flex items-center gap-1 truncate">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{c.location?.address || 'Delhi NCR'}</span>
+                    </div>
+
+                    {c.unavailableDates && c.unavailableDates.length > 0 && (
+                      <div className="mt-1 text-[11px] font-semibold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200">
+                        ⛔ {c.unavailableDates.length} Custom Date(s) Blocked
+                      </div>
+                    )}
                   </div>
 
-                  {/* Actions: Edit Car & Direct Book */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                  {/* Actions: Edit Car, Date Availability & Direct Book */}
+                  <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => {
+                        setSelectedCarForDates(c);
+                        setDateModalOpen(true);
+                      }}
+                      className="flex-1 min-w-[100px] py-2 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 text-amber-400 flex items-center justify-center gap-1 transition"
+                      title="Set custom dates when this car is NOT available"
+                    >
+                      <Calendar className="w-3.5 h-3.5" /> Block Dates
+                    </button>
+
                     <button
                       onClick={() => handleOpenEditCar(c)}
-                      className="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center gap-1.5 transition"
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center gap-1 transition"
                     >
-                      <Edit className="w-3.5 h-3.5" /> Edit Details
+                      <Edit className="w-3.5 h-3.5" /> Edit
                     </button>
 
                     {onOpenDirectBooking && (
                       <button
                         onClick={() => onOpenDirectBooking(c)}
-                        className="flex-1 py-2 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center justify-center gap-1.5 transition shadow-sm"
+                        className="px-3 py-2 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center justify-center gap-1 transition shadow-sm"
                         title="Book directly for walk-in/offline customer"
                       >
-                        <UserCheck className="w-3.5 h-3.5" /> Book Offline
+                        <UserCheck className="w-3.5 h-3.5" /> Walk-In
                       </button>
                     )}
                   </div>
@@ -1437,315 +1519,224 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
           </div>
         )}
 
-        {/* Tab 4: Add Car Form (With BOTH Upload File + Link Input) */}
+        {/* Tab 4: Add Car Form (Simplified for Owner) */}
         {activeTab === 'add-car' && (
-          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl space-y-6">
-            <h2 className="text-xl font-black text-slate-900 font-heading">
-              List New Vehicle on RAS Brother Tour &amp; Travels
-            </h2>
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6 max-w-4xl mx-auto">
+            <div className="border-b border-slate-100 pb-4">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
+                OWNER FLEET MANAGEMENT
+              </span>
+              <h2 className="text-xl font-black text-slate-900 font-heading">
+                Add Your Car to Fleet
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Fill in basic car details, per KM rate, location, fuel policy, and photos to start receiving customer bookings.
+              </p>
+            </div>
 
-            <form onSubmit={handleAddCarSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-semibold">
+            <form onSubmit={handleAddCarSubmit} className="space-y-5">
+              {/* 1. Car Name & Basic Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                 <div>
-                  <label className="block text-slate-700 mb-1">Car Brand</label>
+                  <label className="block text-slate-700 mb-1">Car Name / Title *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Mercedes-Benz"
-                    value={carForm.brand}
-                    onChange={(e) => setCarForm({ ...carForm, brand: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 mb-1">Model Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. S-Class"
-                    value={carForm.model}
-                    onChange={(e) => setCarForm({ ...carForm, model: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 mb-1">Display Title</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. S-Class VIP Chauffeur"
+                    placeholder="e.g. Swift Dzire / Innova Crysta / Honda City"
                     value={carForm.name}
                     onChange={(e) => setCarForm({ ...carForm, name: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 mb-1">Category</label>
-                  <select
-                    value={carForm.category}
-                    onChange={(e) => setCarForm({ ...carForm, category: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-                  >
-                    <option>Wedding Special</option>
-                    <option>Luxury</option>
-                    <option>Premium</option>
-                    <option>Sedan</option>
-                    <option>SUV</option>
-                    <option>Vintage</option>
-                    <option>Party Car</option>
-                    <option>Budget</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 mb-1">Manufacturing Year</label>
-                  <input
-                    type="number"
-                    value={carForm.year}
-                    onChange={(e) => setCarForm({ ...carForm, year: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 mb-1">Vehicle Color</label>
-                  <input
-                    type="text"
-                    value={carForm.color}
-                    onChange={(e) => setCarForm({ ...carForm, color: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
+                    className="w-full p-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-slate-700 mb-1">Seating Capacity</label>
-                  <input
-                    type="number"
+                  <select
                     value={carForm.seatingCapacity}
-                    onChange={(e) => setCarForm({ ...carForm, seatingCapacity: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 mb-1">Fuel Type</label>
-                  <select
-                    value={carForm.fuelType}
-                    onChange={(e) => setCarForm({ ...carForm, fuelType: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+                    onChange={(e) => setCarForm({ ...carForm, seatingCapacity: Number(e.target.value) })}
+                    className="w-full p-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option>Petrol</option>
-                    <option>Diesel</option>
-                    <option>CNG</option>
-                    <option>Electric</option>
-                    <option>Hybrid</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 mb-1">Transmission</label>
-                  <select
-                    value={carForm.transmission}
-                    onChange={(e) => setCarForm({ ...carForm, transmission: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-                  >
-                    <option>Automatic</option>
-                    <option>Manual</option>
+                    <option value={4}>4 Seats</option>
+                    <option value={5}>5 Seats (Standard Sedan)</option>
+                    <option value={7}>7 Seats (SUV / Innova)</option>
+                    <option value={8}>8+ Seats (Van / Traveler)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Photo Upload: BOTH File Upload & Image Link */}
-              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                <div className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-amber-600" />
-                  Vehicle Photos (Upload Image File OR Paste Image Link)
+              {/* 2. Price per KM & Fuel Policy Toggle */}
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                <div className="font-extrabold text-sm text-slate-900 flex items-center justify-between">
+                  <span>Pricing &amp; Fuel Policy</span>
+                  <span className="text-xs text-amber-800 font-bold">Standard: ₹20 / KM</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
-                  {/* Main Exterior Image */}
-                  <div className="space-y-2">
-                    <label className="block text-slate-700">Main Exterior Photo</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Paste image link or upload below..."
-                        value={carForm.mainImage}
-                        onChange={(e) => setCarForm({ ...carForm, mainImage: e.target.value })}
-                        className="flex-1 p-2.5 rounded-xl border border-slate-300"
-                      />
-                    </div>
-                    <label className="flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50/50 cursor-pointer hover:bg-amber-100/50 transition">
-                      <Upload className="w-4 h-4 text-amber-700" />
-                      <span className="text-amber-900 font-bold">
-                        {uploadingMain ? 'Uploading photo...' : '📁 Upload Photo from Device'}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileUpload(e, 'mainImage', setCarForm)}
-                      />
-                    </label>
-                    {carForm.mainImage && (
-                      <div className="h-24 w-36 rounded-xl overflow-hidden border border-slate-200 mt-1">
-                        <img src={carForm.mainImage} alt="Main preview" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Interior Photo */}
-                  <div className="space-y-2">
-                    <label className="block text-slate-700">Interior / Cabin Photo</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Paste image link or upload below..."
-                        value={carForm.interiorImage}
-                        onChange={(e) => setCarForm({ ...carForm, interiorImage: e.target.value })}
-                        className="flex-1 p-2.5 rounded-xl border border-slate-300"
-                      />
-                    </div>
-                    <label className="flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-100 cursor-pointer hover:bg-slate-200/60 transition">
-                      <Upload className="w-4 h-4 text-slate-600" />
-                      <span className="text-slate-800 font-bold">
-                        {uploadingInterior ? 'Uploading photo...' : '📁 Upload Photo from Device'}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileUpload(e, 'interiorImage', setCarForm)}
-                      />
-                    </label>
-                    {carForm.interiorImage && (
-                      <div className="h-24 w-36 rounded-xl overflow-hidden border border-slate-200 mt-1">
-                        <img src={carForm.interiorImage} alt="Interior preview" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Pricing & Advance Settings */}
-              <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-4">
-                <h3 className="font-extrabold text-sm text-amber-900">
-                  Pricing &amp; Advance Booking Settings
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs font-semibold">
                   <div>
-                    <label className="block text-slate-700 mb-1">Per Day Base Price (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      value={carForm.perDay}
-                      onChange={(e) => setCarForm({ ...carForm, perDay: e.target.value, basePrice: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Extra KM Rate (₹/KM)</label>
-                    <input
-                      type="number"
-                      value={carForm.extraKmRate}
-                      onChange={(e) => setCarForm({ ...carForm, extraKmRate: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Chauffeur Charges (₹/day)</label>
-                    <input
-                      type="number"
-                      value={carForm.driverCharges}
-                      onChange={(e) => setCarForm({ ...carForm, driverCharges: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Advance Type &amp; Value</label>
-                    <div className="flex gap-2">
-                      <select
-                        value={carForm.advanceType}
-                        onChange={(e) => setCarForm({ ...carForm, advanceType: e.target.value })}
-                        className="p-2.5 rounded-xl border border-slate-300 bg-white"
-                      >
-                        <option value="percentage">%</option>
-                        <option value="fixed">Fixed ₹</option>
-                      </select>
+                    <label className="block text-slate-700 mb-1">Price Per KM (₹) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-3 text-slate-400 font-bold">₹</span>
                       <input
                         type="number"
-                        value={carForm.advanceValue}
-                        onChange={(e) => setCarForm({ ...carForm, advanceValue: e.target.value })}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
+                        required
+                        min="10"
+                        max="200"
+                        value={carForm.perKm}
+                        onChange={(e) => setCarForm({ ...carForm, perKm: Number(e.target.value), extraKmRate: Number(e.target.value) })}
+                        className="w-full pl-8 p-3 rounded-xl border border-slate-300 bg-white text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                       />
                     </div>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Default rate is ₹20 per KM</span>
+                  </div>
+
+                  {/* Fuel Policy Button Toggle */}
+                  <div>
+                    <label className="block text-slate-700 mb-1">Fuel Charge Policy *</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setCarForm({ ...carForm, fuelIncluded: true })}
+                        className={`p-3 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-1.5 ${
+                          carForm.fuelIncluded !== false
+                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
+                        Fuel Included
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCarForm({ ...carForm, fuelIncluded: false })}
+                        className={`p-3 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-1.5 ${
+                          carForm.fuelIncluded === false
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-amber-300"></span>
+                        Fuel Extra Charge
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-slate-500 mt-1 block">
+                      {carForm.fuelIncluded !== false ? 'Customer pays nothing extra for fuel.' : 'Customer pays fuel cost separately as per actual KM.'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Marketplace Display Location & Coverage Area */}
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 space-y-3 text-xs font-semibold">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-amber-700" />
-                  <span className="font-extrabold text-sm text-slate-900">
-                    Car Display Location (Near Me Search Placement)
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600">
-                  Specify which city and area you want this car to be shown in when customers search "Cars near me" or enter a wedding pickup location.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-slate-700 mb-1">Display Area / Address *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Sector 18, Noida"
-                      value={carForm.address}
-                      onChange={(e) => setCarForm({ ...carForm, address: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Operating City *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Noida / South Delhi / Gurgaon"
-                      value={carForm.city || 'Noida'}
-                      onChange={(e) => setCarForm({ ...carForm, city: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 mb-1">Service Coverage Radius (KM)</label>
-                    <input
-                      type="number"
-                      value={carForm.serviceRadiusKm || 50}
-                      onChange={(e) => setCarForm({ ...carForm, serviceRadiusKm: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Description */}
+              {/* 3. Available Location */}
               <div className="text-xs font-semibold">
-                <label className="block text-slate-700 mb-1">Description</label>
+                <label className="block text-slate-700 mb-1 flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  Where is this Car Available? (City / Area / Location) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sector 18 Noida, Delhi NCR, Connaught Place, Gurgaon"
+                  value={carForm.address}
+                  onChange={(e) => setCarForm({ ...carForm, address: e.target.value, city: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  This location will be used to calculate proximity when customers search nearest cabs.
+                </span>
+              </div>
+
+              {/* 4. Payment Modes Accepted */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs font-semibold">
+                <label className="block text-slate-800 font-bold">Payment Methods Accepted from Customers:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2.5 p-3 rounded-xl bg-white border border-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={carForm.paymentMethods?.includes('cod')}
+                      onChange={(e) => {
+                        const methods = new Set(carForm.paymentMethods || ['cod', 'online']);
+                        if (e.target.checked) methods.add('cod');
+                        else methods.delete('cod');
+                        setCarForm({ ...carForm, paymentMethods: Array.from(methods) });
+                      }}
+                      className="w-4 h-4 accent-amber-600 rounded"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-900">💵 Cash on Delivery (COD)</div>
+                      <div className="text-[11px] text-slate-500">Customer pays cash to driver on ride day</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-3 rounded-xl bg-white border border-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={carForm.paymentMethods?.includes('online')}
+                      onChange={(e) => {
+                        const methods = new Set(carForm.paymentMethods || ['cod', 'online']);
+                        if (e.target.checked) methods.add('online');
+                        else methods.delete('online');
+                        setCarForm({ ...carForm, paymentMethods: Array.from(methods) });
+                      }}
+                      className="w-4 h-4 accent-amber-600 rounded"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-900">📱 Online (UPI QR Code)</div>
+                      <div className="text-[11px] text-slate-500">Customer pays via GPay, PhonePe, Paytm QR</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* 5. Car Photo (Upload or URL) */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs font-semibold">
+                <label className="block text-slate-800 font-bold flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-amber-600" />
+                  Car Photo (Upload Image File or Paste Link) *
+                </label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    placeholder="Paste image URL here or upload below..."
+                    value={carForm.mainImage}
+                    onChange={(e) => setCarForm({ ...carForm, mainImage: e.target.value })}
+                    className="flex-1 p-2.5 rounded-xl border border-slate-300 bg-white"
+                  />
+                  <label className="px-4 py-2.5 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 cursor-pointer hover:bg-amber-100 transition flex items-center justify-center gap-1.5 text-amber-900 font-bold shrink-0">
+                    <Upload className="w-4 h-4" />
+                    <span>{uploadingMain ? 'Uploading...' : 'Upload from Device'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, 'mainImage', setCarForm)}
+                    />
+                  </label>
+                </div>
+                {carForm.mainImage && (
+                  <div className="h-32 w-48 rounded-xl overflow-hidden border border-slate-300 mt-2">
+                    <img src={carForm.mainImage} alt="Car preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+              </div>
+
+              {/* 6. Description */}
+              <div className="text-xs font-semibold">
+                <label className="block text-slate-700 mb-1">Car Description &amp; Details</label>
                 <textarea
                   rows="3"
-                  required
-                  placeholder="Describe your car features, clean condition, chauffeur details..."
+                  placeholder="Mention car condition, AC, luggage space, driver experience..."
                   value={carForm.description}
                   onChange={(e) => setCarForm({ ...carForm, description: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300"
+                  className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
+              {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition"
+                className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition"
               >
-                Publish Vehicle Listing
+                + Add Car to Fleet
               </button>
             </form>
           </div>
@@ -2559,6 +2550,101 @@ export default function OwnerDashboard({ onOpenChat, onOpenDirectBooking, onNavi
                     <Check className="w-4 h-4" /> Match UTR &amp; Confirm Order
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Date Availability Modal */}
+        {dateModalOpen && selectedCarForDates && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 block">
+                    CUSTOM DATE AVAILABILITY
+                  </span>
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    {selectedCarForDates.name}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDateModalOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900">
+                Mark any specific date as <strong>Not Available</strong>. Customers will see this car marked "Not Available" on that date and will be blocked from booking it.
+              </div>
+
+              {/* Add Date to Block */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">Select Date to Mark Not Available:</label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={customDateToBlock}
+                    onChange={(e) => setCustomDateToBlock(e.target.value)}
+                    className="flex-1 p-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={!customDateToBlock}
+                    onClick={() => handleToggleCarDate(selectedCarForDates._id, customDateToBlock)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white shadow transition shrink-0"
+                  >
+                    Block Date
+                  </button>
+                </div>
+              </div>
+
+              {/* List of currently blocked dates */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700">
+                  Currently Blocked Dates ({selectedCarForDates.unavailableDates?.length || 0}):
+                </label>
+
+                {(!selectedCarForDates.unavailableDates || selectedCarForDates.unavailableDates.length === 0) ? (
+                  <div className="text-center py-4 text-xs text-slate-400 italic bg-slate-50 rounded-xl">
+                    No custom dates blocked. Car is available every day.
+                  </div>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5">
+                    {selectedCarForDates.unavailableDates.map((d) => (
+                      <div
+                        key={d}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          <span className="font-bold text-slate-800">{d}</span>
+                          <span className="text-[10px] text-rose-600 font-semibold">(Not Available)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCarDate(selectedCarForDates._id, d)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
+                        >
+                          Unblock Date
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDateModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition"
+                >
+                  Done
+                </button>
               </div>
             </div>
           </div>

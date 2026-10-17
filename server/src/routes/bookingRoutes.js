@@ -12,11 +12,13 @@ const {
   assignChauffeur,
   verifyPaymentAndConfirmBooking,
   createBulkBooking,
+  createBookingQuery,
 } = require('../controllers/bookingController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.post('/', protect, createBooking);
 router.post('/bulk', protect, createBulkBooking);
+router.post('/query', createBookingQuery); // Query / Information Inquiry
 router.get('/my-bookings', protect, getMyBookings);
 router.get('/owner-bookings', protect, authorize('owner', 'admin'), getOwnerBookings);
 router.get('/:id', protect, getBookingById);
