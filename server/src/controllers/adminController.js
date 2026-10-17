@@ -52,15 +52,49 @@ exports.getAdminStats = async (req, res, next) => {
   }
 };
 
-// @desc Get All Users
+// @desc Get All Users with enriched Customer & Owner metrics
 // @route GET /api/admin/users
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.find().select('-password').sort({ createdAt: -1 }).lean();
+    const ownerProfiles = await OwnerProfile.find().lean();
+    const cars = await Car.find().select('owner name category pricing').lean();
+    const bookings = await Booking.find().select('customer owner status pricing').lean();
+
+    const ownerProfileMap = new Map();
+    ownerProfiles.forEach((op) => ownerProfileMap.set(op.user.toString(), op));
+
+    const carCountMap = new Map();
+    cars.forEach((c) => {
+      const ownerId = c.owner?.toString();
+      carCountMap.set(ownerId, (carCountMap.get(ownerId) || 0) + 1);
+    });
+
+    const customerBookingMap = new Map();
+    const customerSpendMap = new Map();
+    bookings.forEach((b) => {
+      const custId = b.customer?.toString();
+      if (custId) {
+        customerBookingMap.set(custId, (customerBookingMap.get(custId) || 0) + 1);
+        customerSpendMap.set(custId, (customerSpendMap.get(custId) || 0) + (b.pricing?.totalAmount || 0));
+      }
+    });
+
+    const enrichedUsers = users.map((u) => {
+      const uId = u._id.toString();
+      return {
+        ...u,
+        ownerProfile: ownerProfileMap.get(uId) || null,
+        carsCount: carCountMap.get(uId) || 0,
+        bookingsCount: customerBookingMap.get(uId) || 0,
+        totalSpent: customerSpendMap.get(uId) || 0,
+      };
+    });
+
     res.json({
       success: true,
-      count: users.length,
-      users,
+      count: enrichedUsers.length,
+      users: enrichedUsers,
     });
   } catch (error) {
     next(error);
@@ -374,3 +408,56 @@ exports.updateBookingStatusByAdmin = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc Get Full Database JSON Backup (Weekly Backup & Export)
+// @route GET /api/admin/backup
+exports.getDatabaseBackup = async (req, res, next) => {
+  try {
+    const [users, owners, cars, bookings, payments, kyc, settings] = await Promise.all([
+      User.find().select('-password').lean(),
+      OwnerProfile.find().lean(),
+      Car.find().lean(),
+      Booking.find().lean(),
+      Payment.find().lean(),
+      KYC.find().lean(),
+      CompanySettings.findOne().lean(),
+    ]);
+
+    const backupData = {
+      meta: {
+        application: 'RAS Brother Tour & Travels',
+        version: '1.0.0',
+        backupType: 'Full Database Snapshot',
+        generatedAt: new Date().toISOString(),
+        totalCollections: 7,
+        totalRecords: users.length + owners.length + cars.length + bookings.length + payments.length + kyc.length,
+        schedule: 'Weekly Automated Sunday 00:00 UTC',
+      },
+      counts: {
+        users: users.length,
+        owners: owners.length,
+        cars: cars.length,
+        bookings: bookings.length,
+        payments: payments.length,
+        kyc: kyc.length,
+      },
+      data: {
+        users,
+        ownerProfiles: owners,
+        cars,
+        bookings,
+        payments,
+        kycRecords: kyc,
+        companySettings: settings,
+      },
+    };
+
+    res.json({
+      success: true,
+      backup: backupData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

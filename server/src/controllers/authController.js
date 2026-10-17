@@ -197,3 +197,117 @@ exports.updateProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc Forgot Password - Request 6-digit OTP
+// @route POST /api/auth/forgot-password
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { emailOrPhone } = req.body;
+    if (!emailOrPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your registered email address or phone number.',
+      });
+    }
+
+    const query = emailOrPhone.includes('@')
+      ? { email: emailOrPhone.trim().toLowerCase() }
+      : { phone: emailOrPhone.trim() };
+
+    const user = await User.findOne(query);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email or phone number.',
+      });
+    }
+
+    // Generate 6-digit verification code
+    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetPasswordOtp = resetOtp;
+    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+    await user.save({ validateBeforeSave: false });
+
+    res.json({
+      success: true,
+      message: `Password reset OTP generated. Please use OTP: ${resetOtp} to reset your password.`,
+      resetOtp,
+      email: user.email,
+      phone: user.phone,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Reset Password with OTP
+// @route POST /api/auth/reset-password
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { emailOrPhone, otp, newPassword } = req.body;
+
+    if (!emailOrPhone || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email/phone, the 6-digit OTP, and a new password.',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long.',
+      });
+    }
+
+    const query = emailOrPhone.includes('@')
+      ? { email: emailOrPhone.trim().toLowerCase() }
+      : { phone: emailOrPhone.trim() };
+
+    const user = await User.findOne(query).select('+password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User account not found.',
+      });
+    }
+
+    if (!user.resetPasswordOtp || user.resetPasswordOtp !== otp.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or incorrect reset OTP entered.',
+      });
+    }
+
+    if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset OTP has expired. Please request a new code.',
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.json({
+      success: true,
+      message: 'Password reset successful! You can now log in.',
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

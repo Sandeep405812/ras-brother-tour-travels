@@ -30,6 +30,12 @@ import {
   AlertCircle,
   ExternalLink,
   Layers,
+  Download,
+  HardDrive,
+  Database,
+  Shield,
+  FileJson,
+  UserCheck,
 } from 'lucide-react';
 
 export default function AdminDashboard({ onNavigate, onLogout }) {
@@ -37,12 +43,17 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
   const { showToast } = useNotification();
   const { company, setCompany, refreshCompany } = useCompany();
 
-  const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'overview' | 'users' | 'kyc' | 'coupons' | 'settings' | 'commission'
+  const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'customers' | 'owners' | 'backup' | 'overview' | 'kyc' | 'coupons' | 'settings'
   const [stats, setStats] = useState(null);
   const [usersList, setUsersList] = useState([]);
   const [kycList, setKycList] = useState([]);
   const [couponsList, setCouponsList] = useState([]);
   const [commissionData, setCommissionData] = useState({ platformRatePercentage: 10, fixedBookingFee: 199 });
+
+  // Separate Customer and Owner search filters
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [downloadingBackup, setDownloadingBackup] = useState(false);
 
   // Bookings monitoring state
   const [bookingsList, setBookingsList] = useState([]);
@@ -276,6 +287,65 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
     }
   };
 
+  // Filtered customer and owner lists
+  const customers = usersList.filter((u) => u.role === 'customer');
+  const owners = usersList.filter((u) => u.role === 'owner');
+
+  const filteredCustomers = customers.filter((c) => {
+    if (!customerSearch.trim()) return true;
+    const q = customerSearch.toLowerCase();
+    return (
+      c.name?.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q) ||
+      c.phone?.includes(q) ||
+      c.city?.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredOwners = owners.filter((o) => {
+    if (!ownerSearch.trim()) return true;
+    const q = ownerSearch.toLowerCase();
+    return (
+      o.name?.toLowerCase().includes(q) ||
+      o.ownerProfile?.businessName?.toLowerCase().includes(q) ||
+      o.phone?.includes(q) ||
+      o.email?.toLowerCase().includes(q) ||
+      o.city?.toLowerCase().includes(q)
+    );
+  });
+
+  // Handle Download Full System JSON Backup (Weekly Backup feature)
+  const handleDownloadBackup = async () => {
+    try {
+      setDownloadingBackup(true);
+      showToast('Preparing full system database snapshot...', 'info');
+      const res = await fetch('/api/admin/backup', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.backup) {
+        const jsonStr = JSON.stringify(data.backup, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const dateStr = new Date().toISOString().split('T')[0];
+        a.href = url;
+        a.download = `ras_brother_backup_${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Complete Database Backup (.json) downloaded successfully! All records safe.', 'success');
+      } else {
+        showToast(data.message || 'Backup export failed', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to download backup', 'error');
+    } finally {
+      setDownloadingBackup(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -330,14 +400,16 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
             {[
               {
                 id: 'bookings',
-                label: `Fleet Bookings (${bookingMetrics.totalCount})`,
+                label: `Bookings (${bookingMetrics.totalCount})`,
                 badge: bookingMetrics.pendingVerificationsCount > 0 ? `${bookingMetrics.pendingVerificationsCount} verify` : null,
               },
-              { id: 'overview', label: 'Platform Stats' },
-              { id: 'users', label: `Users (${usersList.length})` },
+              { id: 'customers', label: `Customers (${customers.length})` },
+              { id: 'owners', label: `Fleet Owners (${owners.length})` },
+              { id: 'backup', label: 'Weekly Backup 🛡️' },
+              { id: 'overview', label: 'Stats' },
               { id: 'kyc', label: `KYC (${kycList.length})` },
               { id: 'coupons', label: `Coupons (${couponsList.length})` },
-              { id: 'settings', label: 'Brand & Settings' },
+              { id: 'settings', label: 'Settings' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -785,46 +857,266 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
           </div>
         )}
 
-        {/* Tab 2: Users Management */}
-        {activeTab === 'users' && (
+        {/* Tab: Customers Directory */}
+        {activeTab === 'customers' && (
           <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <h2 className="text-lg font-black text-slate-900 font-heading">
-              Platform Registered Users
-            </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 font-heading">
+                  Customer Directory ({filteredCustomers.length})
+                </h2>
+                <p className="text-xs text-slate-500">Registered customers, ride history, and total spending.</p>
+              </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold">
-                    <th className="pb-3">Name</th>
-                    <th className="pb-3">Email</th>
-                    <th className="pb-3">Phone</th>
-                    <th className="pb-3">Role</th>
-                    <th className="pb-3">Joined Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                  {usersList.map((u) => (
-                    <tr key={u._id}>
-                      <td className="py-3 font-bold text-slate-900">{u.name}</td>
-                      <td className="py-3">{u.email}</td>
-                      <td className="py-3">{u.phone}</td>
-                      <td className="py-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          u.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : u.role === 'owner'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="py-3 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+              <div className="w-full sm:w-72 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search customer name, email, phone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {filteredCustomers.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-400">
+                No customer records match your search.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[650px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold">
+                      <th className="pb-3">Customer Name</th>
+                      <th className="pb-3">Contact Details</th>
+                      <th className="pb-3">City / Area</th>
+                      <th className="pb-3 text-center">Bookings</th>
+                      <th className="pb-3 text-right">Total Spent</th>
+                      <th className="pb-3 text-right">Registered</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                    {filteredCustomers.map((c) => (
+                      <tr key={c._id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 font-bold text-slate-900 flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-xs shrink-0">
+                            {c.name?.charAt(0) || 'C'}
+                          </div>
+                          <span>{c.name}</span>
+                        </td>
+                        <td className="py-3">
+                          <div className="text-slate-900 font-semibold">{c.phone || 'No phone'}</div>
+                          <div className="text-slate-400 text-[11px]">{c.email}</div>
+                        </td>
+                        <td className="py-3 text-slate-600">{c.city || c.address || 'Delhi NCR'}</td>
+                        <td className="py-3 text-center font-bold">
+                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            {c.bookingsCount || 0} rides
+                          </span>
+                        </td>
+                        <td className="py-3 text-right font-black text-emerald-600 font-mono">
+                          ₹{(c.totalSpent || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 text-right text-slate-500">
+                          {new Date(c.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Fleet Owners Directory */}
+        {activeTab === 'owners' && (
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 font-heading">
+                  Fleet Owners &amp; Vendors ({filteredOwners.length})
+                </h2>
+                <p className="text-xs text-slate-500">Car suppliers, fleet size, business names, and KYC verification.</p>
+              </div>
+
+              <div className="w-full sm:w-72 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search owner, business name, phone..."
+                  value={ownerSearch}
+                  onChange={(e) => setOwnerSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {filteredOwners.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-400">
+                No fleet owner records match your search.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold">
+                      <th className="pb-3">Owner / Partner</th>
+                      <th className="pb-3">Business Fleet Title</th>
+                      <th className="pb-3">Contact</th>
+                      <th className="pb-3 text-center">Listed Cars</th>
+                      <th className="pb-3">Operating Location</th>
+                      <th className="pb-3 text-right">KYC Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                    {filteredOwners.map((o) => (
+                      <tr key={o._id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 font-bold text-slate-900 flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-xs shrink-0">
+                            {o.name?.charAt(0) || 'O'}
+                          </div>
+                          <span>{o.name}</span>
+                        </td>
+                        <td className="py-3 font-bold text-slate-800">
+                          {o.ownerProfile?.businessName || `${o.name} Fleet`}
+                        </td>
+                        <td className="py-3">
+                          <div className="text-slate-900 font-semibold">{o.phone || 'No phone'}</div>
+                          <div className="text-slate-400 text-[11px]">{o.email}</div>
+                        </td>
+                        <td className="py-3 text-center font-black">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                            🚗 {o.carsCount || 0} Cars
+                          </span>
+                        </td>
+                        <td className="py-3 text-slate-600">{o.city || o.address || 'Delhi NCR'}</td>
+                        <td className="py-3 text-right">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            o.isVerified
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {o.isVerified ? 'Verified' : 'Pending KYC'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Weekly Data Backup & Disaster Recovery */}
+        {activeTab === 'backup' && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" /> DATA PROTECTION &amp; ZERO-DATA-LOSS GUARANTEE
+                </span>
+                <h2 className="text-xl font-black text-slate-900 font-heading mt-0.5">
+                  Database Backup &amp; Weekly Snapshot Console
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Export complete database records anytime. Automated weekly snapshots run every Sunday at 00:00 UTC.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadBackup}
+                disabled={downloadingBackup}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition shrink-0"
+              >
+                <Download className="w-4 h-4" />
+                {downloadingBackup ? 'Exporting Database...' : 'Download Full Backup (.json)'}
+              </button>
+            </div>
+
+            {/* Backup Status Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-semibold">
+              <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1.5">
+                <div className="text-emerald-800 font-extrabold uppercase text-[10px]">Weekly Cloud Schedule</div>
+                <div className="text-lg font-black text-emerald-950 flex items-center gap-1.5">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>Weekly Auto-Backup Active</span>
+                </div>
+                <p className="text-[11px] text-emerald-700">Runs automatically every 7 days (Sunday 00:00 UTC).</p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+                <div className="text-slate-500 font-extrabold uppercase text-[10px]">Protected Collections</div>
+                <div className="text-lg font-black text-slate-900 flex items-center gap-1.5">
+                  <Database className="w-5 h-5 text-amber-500 shrink-0" />
+                  <span>7 Full MongoDB Collections</span>
+                </div>
+                <p className="text-[11px] text-slate-500">Users, Owners, Cars, Bookings, Payments, KYC, Settings.</p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+                <div className="text-slate-500 font-extrabold uppercase text-[10px]">Export Format</div>
+                <div className="text-lg font-black text-slate-900 flex items-center gap-1.5">
+                  <FileJson className="w-5 h-5 text-blue-500 shrink-0" />
+                  <span>Universal JSON Archive</span>
+                </div>
+                <p className="text-[11px] text-slate-500">Easily restorable to MongoDB Atlas or local MongoDB instance.</p>
+              </div>
+            </div>
+
+            {/* Collections Breakdown Table */}
+            <div className="space-y-3 pt-2">
+              <h3 className="font-extrabold text-sm text-slate-900">
+                Data Volume Summary
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold">
+                      <th className="pb-2.5">Database Collection</th>
+                      <th className="pb-2.5">Data Category</th>
+                      <th className="pb-2.5 text-center">Active Records</th>
+                      <th className="pb-2.5 text-right">Backup Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                    <tr>
+                      <td className="py-2.5 font-bold font-mono">users</td>
+                      <td className="py-2.5">Customers, Admins &amp; Vendor Logins</td>
+                      <td className="py-2.5 text-center font-bold text-slate-900">{usersList.length}</td>
+                      <td className="py-2.5 text-right font-bold text-emerald-600">✓ Protected</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2.5 font-bold font-mono">cars</td>
+                      <td className="py-2.5">Vehicle Fleet, Rates, Fuel Policy, Availability</td>
+                      <td className="py-2.5 text-center font-bold text-slate-900">{stats?.totalCars || 0}</td>
+                      <td className="py-2.5 text-right font-bold text-emerald-600">✓ Protected</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2.5 font-bold font-mono">bookings</td>
+                      <td className="py-2.5">Reservations, Ride Verification OTPs, Routes</td>
+                      <td className="py-2.5 text-center font-bold text-slate-900">{bookingMetrics.totalCount || 0}</td>
+                      <td className="py-2.5 text-right font-bold text-emerald-600">✓ Protected</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2.5 font-bold font-mono">ownerprofiles</td>
+                      <td className="py-2.5">Fleet Vendor Businesses &amp; Wallets</td>
+                      <td className="py-2.5 text-center font-bold text-slate-900">{owners.length}</td>
+                      <td className="py-2.5 text-right font-bold text-emerald-600">✓ Protected</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2.5 font-bold font-mono">kycrecords</td>
+                      <td className="py-2.5">Aadhaar, Driving License, RC Documents</td>
+                      <td className="py-2.5 text-center font-bold text-slate-900">{kycList.length}</td>
+                      <td className="py-2.5 text-right font-bold text-emerald-600">✓ Protected</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

@@ -15,6 +15,7 @@ const {
   updateCommission,
   getAllBookingsForAdmin,
   updateBookingStatusByAdmin,
+  getDatabaseBackup,
 } = require('../controllers/adminController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -38,5 +39,6 @@ router.get('/commission', getCommission);
 router.put('/commission', updateCommission);
 router.get('/bookings', getAllBookingsForAdmin);
 router.put('/bookings/:id/status', updateBookingStatusByAdmin);
+router.get('/backup', getDatabaseBackup);
 
 module.exports = router;
