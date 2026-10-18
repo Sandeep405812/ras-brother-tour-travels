@@ -22,7 +22,7 @@ const calculateRoute = async (req, res) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyCRkPmfLzNuvIJxZMoKdNf4lw97ImyCXU8',
+          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY ,
           'X-Goog-FieldMask':
             'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
         },
