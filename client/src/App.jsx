@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import GoogleMap from './components/GoogleMap';
+import GoogleMap from '../src/components/GoogleMap.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider } from './context/CompanyContext';
 import { SocketProvider } from './context/SocketContext';
@@ -251,7 +251,6 @@ function MainLayout() {
 
       {/* Main Content Router */}
       <main className="flex-1">
-        <GoogleMap />
         {currentPage === 'home' && (
           <HomePage
             onNavigate={navigateTo}
