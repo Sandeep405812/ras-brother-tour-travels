@@ -161,81 +161,63 @@ export async function searchPlacesOSM(query) {
     return queryWords.every((w) => locLower.includes(w)) || locLower.includes(lowerQ);
   });
 
-  let onlineMatches = [];
-
-  // 2. Query Photon (Fast OSM-based search for villages, colonies, roads, landmarks)
-  try {
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=35&lang=en`;
-    const res = await fetch(photonUrl);
-    if (res.ok) {
+  // 2. Run Photon AND Nominatim in PARALLEL for maximum coverage
+  const photonPromise = (async () => {
+    try {
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery + ' India')}&limit=25&lang=en`;
+      const res = await fetch(photonUrl);
+      if (!res.ok) return [];
       const data = await res.json();
-      if (data && Array.isArray(data.features)) {
-        onlineMatches = data.features
-          .filter((f) => {
-            const countrycode = (f.properties?.countrycode || '').toLowerCase();
-            const country = (f.properties?.country || '').toLowerCase();
-            return countrycode === 'in' || country.includes('india') || countrycode === '';
-          })
-          .map((f) => {
-            const p = f.properties || {};
-            const coords = f.geometry?.coordinates || [77.2090, 28.6139]; // [lng, lat]
-            const name = p.name || p.street || p.city || cleanQuery;
+      if (!data || !Array.isArray(data.features)) return [];
 
-            const addrParts = [
-              p.street && p.street !== name ? p.street : '',
-              p.district || p.suburb || p.locality,
-              p.county,
-              p.city && p.city !== name ? p.city : '',
-              p.state,
-              p.postcode,
-            ].filter(Boolean);
+      return data.features
+        .filter((f) => {
+          const countrycode = (f.properties?.countrycode || '').toLowerCase();
+          const country = (f.properties?.country || '').toLowerCase();
+          return countrycode === 'in' || country.includes('india') || countrycode === '';
+        })
+        .map((f) => {
+          const p = f.properties || {};
+          const coords = f.geometry?.coordinates || [77.2090, 28.6139];
+          const name = p.name || p.street || p.city || cleanQuery;
 
-            const fullAddress =
-              addrParts.length > 0 ? addrParts.join(', ') : p.country || 'India';
+          const addrParts = [
+            p.street && p.street !== name ? p.street : '',
+            p.district || p.suburb || p.locality,
+            p.county,
+            p.city && p.city !== name ? p.city : '',
+            p.state,
+            p.postcode,
+          ].filter(Boolean);
 
-            let icon = '📍';
-            let type = p.osm_value || p.type || 'place';
-            const nameLower = name.toLowerCase();
+          const fullAddress = addrParts.length > 0 ? addrParts.join(', ') : p.country || 'India';
 
-            if (p.osm_key === 'aeroway' || nameLower.includes('airport')) {
-              icon = '✈️';
-              type = 'airport';
-            } else if (
-              p.osm_key === 'railway' ||
-              nameLower.includes('station') ||
-              nameLower.includes('junction')
-            ) {
-              icon = '🚆';
-              type = 'station';
-            } else if (p.osm_key === 'tourism' || nameLower.includes('hotel') || nameLower.includes('resort')) {
-              icon = '🏨';
-              type = 'hotel';
-            } else if (p.osm_value === 'village' || p.osm_value === 'hamlet') {
-              icon = '🏡';
-              type = 'village';
-            } else if (nameLower.includes('sector') || nameLower.includes('colony') || nameLower.includes('nagar') || nameLower.includes('vihar')) {
-              icon = '🏘️';
-              type = 'colony';
-            }
+          let icon = '📍';
+          let type = p.osm_value || p.type || 'place';
+          const nameLower = name.toLowerCase();
 
-            return {
-              name,
-              fullAddress,
-              type,
-              icon,
-              coords,
-              lat: coords[1],
-              lon: coords[0],
-            };
-          });
-      }
+          if (p.osm_key === 'aeroway' || nameLower.includes('airport')) {
+            icon = '✈️'; type = 'airport';
+          } else if (p.osm_key === 'railway' || nameLower.includes('station') || nameLower.includes('junction')) {
+            icon = '🚆'; type = 'station';
+          } else if (p.osm_key === 'tourism' || nameLower.includes('hotel') || nameLower.includes('resort')) {
+            icon = '🏨'; type = 'hotel';
+          } else if (p.osm_value === 'village' || p.osm_value === 'hamlet') {
+            icon = '🏡'; type = 'village';
+          } else if (nameLower.includes('sector') || nameLower.includes('colony') || nameLower.includes('nagar') || nameLower.includes('vihar')) {
+            icon = '🏘️'; type = 'colony';
+          }
+
+          return { name, fullAddress, type, icon, coords, lat: coords[1], lon: coords[0] };
+        });
+    } catch (err) {
+      console.warn('Photon lookup failed:', err.message);
+      return [];
     }
-  } catch (err) {
-    console.warn('Photon lookup failed:', err.message);
-  }
+  })();
 
-  // 3. Fallback to OpenStreetMap Nominatim if results are sparse
-  if (onlineMatches.length < 15 && cleanQuery.length >= 2) {
+  const nominatimPromise = (async () => {
+    if (cleanQuery.length < 2) return [];
     try {
       await throttleNominatim();
       const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery)}&countrycodes=in&limit=15&addressdetails=1`;
@@ -245,38 +227,42 @@ export async function searchPlacesOSM(query) {
           'User-Agent': 'RAS-Brother-Tour-Travels/1.0',
         },
       });
+      if (!res.ok) return [];
+      const nomData = await res.json();
+      return nomData.map((item) => {
+        const parts = (item.display_name || '').split(',').map((s) => s.trim());
+        const name = parts.slice(0, 2).join(', ');
+        const fullAddress = parts.slice(2).join(', ') || item.display_name;
+        const lat = parseFloat(item.lat);
+        const lon = parseFloat(item.lon);
 
-      if (res.ok) {
-        const nomData = await res.json();
-        const nomList = nomData.map((item) => {
-          const parts = (item.display_name || '').split(',').map((s) => s.trim());
-          const name = parts.slice(0, 2).join(', ');
-          const fullAddress = parts.slice(2).join(', ') || item.display_name;
-          const lat = parseFloat(item.lat);
-          const lon = parseFloat(item.lon);
-          return {
-            name,
-            fullAddress,
-            type: item.type || 'address',
-            icon: item.type === 'aerodrome' ? '✈️' : item.type === 'station' ? '🚆' : '📍',
-            coords: [lon, lat],
-            lat,
-            lon,
-          };
-        });
-        onlineMatches = [...onlineMatches, ...nomList];
-      }
+        let icon = '📍';
+        let type = item.type || 'address';
+        if (item.type === 'aerodrome') { icon = '✈️'; type = 'airport'; }
+        else if (item.type === 'station' || item.type === 'halt') { icon = '🚆'; type = 'station'; }
+        else if (item.type === 'village' || item.type === 'hamlet') { icon = '🏡'; type = 'village'; }
+        else if (item.class === 'place') { icon = '📍'; }
+
+        return { name, fullAddress, type, icon, coords: [lon, lat], lat, lon };
+      });
     } catch (nomErr) {
       console.warn('Nominatim forward search error:', nomErr.message);
+      return [];
     }
-  }
+  })();
 
-  // Combine and deduplicate smartly by name + address
+  // Wait for both in parallel
+  const [photonResults, nominatimResults] = await Promise.all([photonPromise, nominatimPromise]);
+
+  // Combine and deduplicate smartly by normalized name + rough coords
   const seen = new Set();
   const finalResults = [];
 
-  for (const item of [...localMatches, ...onlineMatches]) {
-    const key = `${item.name.toLowerCase().trim()}|${(item.fullAddress || '').toLowerCase().trim()}`;
+  for (const item of [...localMatches, ...photonResults, ...nominatimResults]) {
+    // Use name + rough coords (2 decimal ~ 1.1km) for dedup
+    const namePart = item.name.toLowerCase().replace(/[^a-z0-9\u0900-\u097F]/g, '').slice(0, 30);
+    const coordPart = item.coords ? `${item.coords[0]?.toFixed(2)},${item.coords[1]?.toFixed(2)}` : '';
+    const key = `${namePart}|${coordPart}`;
     if (!seen.has(key)) {
       seen.add(key);
       finalResults.push(item);
@@ -296,8 +282,8 @@ export async function searchPlacesOSM(query) {
     finalResults.push(customOption);
   }
 
-  // Return up to 25 comprehensive results
-  const results = finalResults.slice(0, 25);
+  // Return up to 30 comprehensive results
+  const results = finalResults.slice(0, 30);
 
   searchCache.set(lowerQ, results);
   try {

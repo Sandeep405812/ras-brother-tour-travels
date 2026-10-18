@@ -113,7 +113,7 @@ export function normalizeCoordinates(val) {
   return [77.2090, 28.6139];
 }
 
-// Robust Haversine formula accepting any input format
+// Robust Haversine formula accepting any input format (FALLBACK only)
 // calculateHaversineDistance(c1, c2) or calculateHaversineDistance(lat1, lon1, lat2, lon2)
 export function calculateHaversineDistance(a, b, c, d) {
   let lon1, lat1, lon2, lat2;
@@ -151,11 +151,64 @@ export function calculateHaversineDistance(a, b, c, d) {
   const angle = 2 * Math.atan2(Math.sqrt(haversineVal), Math.sqrt(1 - haversineVal));
   const straightKm = R * angle;
 
-  // Real-world road curvature driving multiplier (1.25x - 1.30x)
-  const drivingFactor = 1.25;
+  // Fallback multiplier only used when OSRM fails
+  const drivingFactor = 1.30;
   const roadKm = Math.round(straightKm * drivingFactor * 10) / 10;
 
   return roadKm > 0 ? roadKm : 1;
+}
+
+// In-memory cache for OSRM road distances
+const osrmCache = new Map();
+
+/**
+ * Get EXACT road distance via OSRM (Open Source Routing Machine) — Free, no API key.
+ * Returns { distanceKm, durationMin, routeGeometry } or falls back to Haversine.
+ * Accepts coordinates as [lng, lat] arrays, or { lat, lng } objects.
+ */
+export async function getRoadDistance(from, to) {
+  const p1 = normalizeCoordinates(from);
+  const p2 = normalizeCoordinates(to);
+  const lon1 = p1[0], lat1 = p1[1];
+  const lon2 = p2[0], lat2 = p2[1];
+
+  if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+    return { distanceKm: 0, durationMin: 0, routeGeometry: null, source: 'invalid' };
+  }
+  if (lat1 === lat2 && lon1 === lon2) {
+    return { distanceKm: 0, durationMin: 0, routeGeometry: null, source: 'same' };
+  }
+
+  // Cache key rounded to 4 decimal places (~11m precision)
+  const cacheKey = `${lon1.toFixed(4)},${lat1.toFixed(4)}-${lon2.toFixed(4)},${lat2.toFixed(4)}`;
+  if (osrmCache.has(cacheKey)) {
+    return osrmCache.get(cacheKey);
+  }
+
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=simplified&geometries=geojson`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const distanceKm = Math.round((route.distance / 1000) * 10) / 10; // meters to km, 1 decimal
+        const durationMin = Math.round(route.duration / 60);
+        const routeGeometry = route.geometry || null;
+        const result = { distanceKm, durationMin, routeGeometry, source: 'osrm' };
+        osrmCache.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (err) {
+    console.warn('OSRM road distance failed, using Haversine fallback:', err.message);
+  }
+
+  // Fallback to Haversine if OSRM fails
+  const haversineKm = calculateHaversineDistance(p1, p2);
+  const fallback = { distanceKm: haversineKm, durationMin: Math.round(haversineKm * 2), routeGeometry: null, source: 'haversine' };
+  osrmCache.set(cacheKey, fallback);
+  return fallback;
 }
 
 // Resolve approximate coordinates from address string
@@ -222,7 +275,7 @@ export async function searchPlaces(query) {
 
   // 2. Fetch live suggestions from Photon (OpenStreetMap Autocomplete Service)
   try {
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=10`;
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery + ' India')}&limit=15`;
     const res = await fetch(photonUrl);
     if (res.ok) {
       const data = await res.json();

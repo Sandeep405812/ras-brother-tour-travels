@@ -11,6 +11,7 @@ import {
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { reverseGeocode, detectGpsLocation } from '../../utils/geoService';
+import { getRoadDistance } from '../../utils/distanceCalculator';
 import {
   MapPin,
   Navigation,
@@ -101,12 +102,33 @@ export default function RouteMapPicker({
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [focusTrigger, setFocusTrigger] = useState(0);
   const [gpsError, setGpsError] = useState('');
+  const [roadRoutePositions, setRoadRoutePositions] = useState(null);
+  const [roadInfo, setRoadInfo] = useState(null); // { distanceKm, durationMin }
 
   // Normalize coordinates to [lat, lng] for Leaflet
   const pickupLatLng =
     pickupCoords && pickupCoords.length === 2 ? [pickupCoords[1], pickupCoords[0]] : [28.6139, 77.2090];
   const dropLatLng =
     dropCoords && dropCoords.length === 2 ? [dropCoords[1], dropCoords[0]] : [28.5708, 77.3244];
+
+  // Fetch real road route from OSRM when coordinates change
+  useEffect(() => {
+    let cancelled = false;
+    getRoadDistance(pickupCoords, dropCoords).then((result) => {
+      if (cancelled) return;
+      if (result.routeGeometry && result.routeGeometry.coordinates) {
+        // OSRM returns GeoJSON [lng, lat], Leaflet needs [lat, lng]
+        const positions = result.routeGeometry.coordinates.map(([lng, lat]) => [lat, lng]);
+        setRoadRoutePositions(positions);
+      } else {
+        setRoadRoutePositions(null);
+      }
+      if (result.distanceKm > 0) {
+        setRoadInfo({ distanceKm: result.distanceKm, durationMin: result.durationMin });
+      }
+    });
+    return () => { cancelled = true; };
+  }, [pickupCoords, dropCoords]);
 
   // Handle map click
   const handleMapClick = async (lat, lng, mode) => {
@@ -354,8 +376,20 @@ export default function RouteMapPicker({
           </Marker>
         )}
 
-        {/* Route Line connecting Pickup and Drop */}
-        {pickupLatLng && dropLatLng && (
+        {/* Real Road Route (OSRM) — solid blue curve following actual roads */}
+        {roadRoutePositions && roadRoutePositions.length > 1 && (
+          <Polyline
+            positions={roadRoutePositions}
+            pathOptions={{
+              color: '#3B82F6',
+              weight: 5,
+              opacity: 0.9,
+            }}
+          />
+        )}
+
+        {/* Straight-line fallback if OSRM route not loaded yet */}
+        {!roadRoutePositions && pickupLatLng && dropLatLng && (
           <Polyline
             positions={[pickupLatLng, dropLatLng]}
             pathOptions={{
@@ -367,6 +401,18 @@ export default function RouteMapPicker({
           />
         )}
       </MapContainer>
+
+      {/* Road Distance & Duration Info Badge */}
+      {roadInfo && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+          <div className="bg-slate-950/95 backdrop-blur-md border border-blue-500/40 rounded-2xl px-4 py-1.5 shadow-xl flex items-center gap-3 text-xs pointer-events-auto">
+            <span className="font-black text-blue-400">🛣️ {roadInfo.distanceKm} km</span>
+            {roadInfo.durationMin > 0 && (
+              <span className="text-slate-300">⏱️ ~{roadInfo.durationMin} min</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Floating Status / Error Bar */}
       {(isGeocoding || geocodingStatus || gpsError) && (

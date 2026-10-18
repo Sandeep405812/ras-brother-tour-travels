@@ -5,6 +5,7 @@ import { useNotification } from '../../context/NotificationContext';
 import {
   calculateHaversineDistance,
   resolveCoordinates,
+  getRoadDistance,
 } from '../../utils/distanceCalculator';
 import LocationAutocomplete from '../common/LocationAutocomplete';
 import RouteMapPicker from '../common/RouteMapPicker';
@@ -69,12 +70,23 @@ export default function BookingModal({
   const [loading, setLoading] = useState(false);
   const [showMap, setShowMap] = useState(false);
 
-  // Recalculate distance dynamically
+  // Recalculate distance dynamically using OSRM real road distance
   useEffect(() => {
     const c1 = sourceCoords || resolveCoordinates(sourceAddress);
     const c2 = destCoords || resolveCoordinates(destinationAddress);
-    const km = calculateHaversineDistance(c1, c2);
-    setCalculatedDistance(km > 0 ? km : 25);
+
+    // Instant Haversine estimate first
+    const instantKm = calculateHaversineDistance(c1, c2);
+    setCalculatedDistance(instantKm > 0 ? instantKm : 25);
+
+    // Then fetch exact road distance from OSRM
+    let cancelled = false;
+    getRoadDistance(c1, c2).then((result) => {
+      if (!cancelled && result.distanceKm > 0) {
+        setCalculatedDistance(result.distanceKm);
+      }
+    });
+    return () => { cancelled = true; };
   }, [sourceAddress, destinationAddress, sourceCoords, destCoords]);
 
   if (!isOpen || !car) return null;
