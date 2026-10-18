@@ -338,7 +338,7 @@ export default function CarsPage({
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-900">
-              Available Cars Nearest to You ({cars.length} Found within 100 KM)
+              Available Cars Nearest to You {loading ? '(Searching fleet...)' : `(${cars.length} Found within 100 KM)`}
             </h2>
           </div>
 
@@ -349,23 +349,45 @@ export default function CarsPage({
               ))}
             </div>
           ) : cars.length === 0 ? (
-            <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm">
-              <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+            <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm space-y-3">
+              <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
               <h3 className="text-base font-bold text-slate-900">No cars found within 100 KM of your pickup location</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                No active fleet was found within 100 KM of "{sourceAddress}". Please try selecting a nearby city or submit a query to admin.
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                No active fleet was found within 100 KM of "{sourceAddress}". Please try selecting a nearby city, browse all vehicles, or contact admin.
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCarForQuery(null);
-                  setQueryForm({ name: '', phone: '', message: `Looking for a car near ${sourceAddress} to ${destinationAddress} on ${tripDate}` });
-                  setQueryModalOpen(true);
-                }}
-                className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition"
-              >
-                📞 Contact Admin for Custom Ride
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const res = await fetch('/api/cars');
+                      const data = await res.json();
+                      if (data.success) {
+                        setCars(data.cars || []);
+                      }
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition"
+                >
+                  🚗 Browse All Fleet Cars
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCarForQuery(null);
+                    setQueryForm({ name: '', phone: '', message: `Looking for a car near ${sourceAddress} to ${destinationAddress} on ${tripDate}` });
+                    setQueryModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition"
+                >
+                  📞 Contact Admin for Custom Ride
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

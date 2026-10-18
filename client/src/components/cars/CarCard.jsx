@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 
 export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeDetails = null }) {
   const { lang, t } = useLanguage();
-  const perKmRate = Number(car.pricing?.perKm) || 20;
+  const perKmRate = Number(car.pricing?.perKm ?? car.pricing?.extraKmRate) || 20;
   const hasPerKmRate = Number.isFinite(perKmRate) && perKmRate > 0;
 
   // Calculate fare only when both live route distance and owner's DB rate exist.

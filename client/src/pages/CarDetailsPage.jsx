@@ -80,8 +80,8 @@ export default function CarDetailsPage({
     );
   }
 
-  const rawPerKm = Number(car.pricing?.perKm);
-  const perKmRate = Number.isFinite(rawPerKm) && rawPerKm > 0 ? rawPerKm : null;
+  const rawPerKm = Number(car.pricing?.perKm ?? car.pricing?.extraKmRate);
+  const perKmRate = Number.isFinite(rawPerKm) && rawPerKm > 0 ? rawPerKm : 20;
 
   const rawPerDay = Number(car.pricing?.perDay);
   const rawBasePrice = Number(car.pricing?.basePrice);

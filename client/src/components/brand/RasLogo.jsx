@@ -28,14 +28,14 @@ export default function RasLogo({
         <svg viewBox="0 0 100 115" className="w-full h-full drop-shadow-md">
           <defs>
             <linearGradient id={`goldGradLogo-${variant}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#FFFBEB" />
-              <stop offset="35%" stop-color="#F59E0B" />
-              <stop offset="70%" stop-color="#D97706" />
-              <stop offset="100%" stop-color="#92400E" />
+              <stop offset="0%" stopColor="#FFFBEB" />
+              <stop offset="35%" stopColor="#F59E0B" />
+              <stop offset="70%" stopColor="#D97706" />
+              <stop offset="100%" stopColor="#92400E" />
             </linearGradient>
             <linearGradient id={`bgShieldGrad-${variant}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#0A1128" />
-              <stop offset="100%" stop-color="#1C2541" />
+              <stop offset="0%" stopColor="#0A1128" />
+              <stop offset="100%" stopColor="#1C2541" />
             </linearGradient>
           </defs>
           

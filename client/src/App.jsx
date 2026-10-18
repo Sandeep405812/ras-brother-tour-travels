@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import GoogleMap from '../src/components/GoogleMap.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider } from './context/CompanyContext';
 import { SocketProvider } from './context/SocketContext';
@@ -32,6 +31,7 @@ import BookingConfirmationPage from './pages/BookingConfirmationPage';
 import BookingModal from './components/cars/BookingModal';
 import MakeOfferModal from './components/cars/MakeOfferModal';
 import BulkBookingModal from './components/cars/BulkBookingModal';
+import FloatingWhatsAppButton from './components/common/FloatingWhatsAppButton';
 
 function FloatingInstallAppButton() {
   const { t } = useLanguage();
@@ -73,7 +73,7 @@ function FloatingInstallAppButton() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-md text-white border border-amber-500/40 rounded-2xl p-1.5 pr-2.5 shadow-2xl">
+    <div className="sm:hidden fixed bottom-4 left-4 z-40 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-md text-white border border-amber-500/40 rounded-2xl p-1.5 pr-2.5 shadow-2xl">
       <button
         onClick={handleInstall}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:from-amber-400 transition shadow-md"
@@ -191,66 +191,22 @@ function MainLayout() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 selection:bg-amber-500 selection:text-white font-sans">
-      {/* Universal Brand Navbar (Hidden when logged in) */}
-      {!isAuthenticated && <Navbar onNavigate={navigateTo} currentPage={currentPage} />}
-
-      {/* Mini App Header for Logged-In Users on Non-Dashboard Pages */}
-      {isAuthenticated && !['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage) && (
-        <header className="bg-slate-900 border-b border-slate-800 text-white px-4 py-3 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-lg">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigateTo('home')}
-              className="flex items-center gap-2 hover:opacity-90 transition"
-              title="Go to Home"
-            >
-              <RasLogo variant="dark" size="sm" showTagline={false} />
-            </button>
-            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider hidden sm:inline">
-              • {user?.role === 'owner' ? 'Owner Portal' : user?.role === 'admin' ? 'Admin Panel' : 'Customer Portal'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <LanguageToggle variant="dark" />
-
-            <button
-              type="button"
-              onClick={() => navigateTo('home')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                currentPage === 'home'
-                  ? 'bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <span>🚗 {t('Book Your Car', 'गाड़ी बुक करें')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (user?.role === 'admin') navigateTo('admin-dashboard');
-                else if (user?.role === 'owner') navigateTo('owner-dashboard');
-                else navigateTo('customer-dashboard');
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950 transition shadow-sm"
-            >
-              {t('My Dashboard', 'डैशबोर्ड')}
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-rose-900 hover:text-rose-200 text-slate-300 transition"
-            >
-              {t('Logout', 'लॉगआउट')}
-            </button>
-          </div>
-        </header>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 selection:bg-amber-500 selection:text-white font-sans">
+      {/* Universal Left-Side Navigation (Desktop Sidebar + Mobile Left Drawer & Bottom Dock) */}
+      {!['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage) && (
+        <Navbar onNavigate={navigateTo} currentPage={currentPage} />
       )}
 
-      {/* Main Content Router */}
-      <main className="flex-1">
+      {/* Main Content Area */}
+      <div
+        className={`flex-1 min-w-0 flex flex-col ${
+          !['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage)
+            ? 'lg:pl-64 xl:pl-72 pb-16 lg:pb-0'
+            : ''
+        }`}
+      >
+        {/* Main Content Router */}
+        <main className="flex-1">
         {currentPage === 'home' && (
           <HomePage
             onNavigate={navigateTo}
@@ -343,10 +299,13 @@ function MainLayout() {
             onOpenChat={handleOpenChat}
           />
         )}
-      </main>
+        </main>
 
-      {/* Universal Footer (Hidden when logged in) */}
-      {!isAuthenticated && <Footer onNavigate={navigateTo} />}
+        {/* Universal Footer */}
+        {!['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage) && (
+          <Footer onNavigate={navigateTo} />
+        )}
+      </div>
 
       {/* Booking Modal */}
       {bookingModalOpen && selectedCarForBooking && (
@@ -382,6 +341,9 @@ function MainLayout() {
 
       {/* Floating PWA Install App Button on Mobile */}
       <FloatingInstallAppButton />
+
+      {/* Floating WhatsApp Concierge Button */}
+      <FloatingWhatsAppButton />
     </div>
   );
 }

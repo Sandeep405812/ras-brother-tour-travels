@@ -14,8 +14,47 @@
 // { lat, lon }
 // ------------------------------------------------------------
 
+export const KNOWN_CITY_COORDINATES = {
+  'new delhi': [77.2090, 28.6139],
+  'delhi': [77.2090, 28.6139],
+  'delhi ncr': [77.2090, 28.6139],
+  'noida': [77.3910, 28.5355],
+  'noida sector 18': [77.3244, 28.5708],
+  'gurgaon': [77.0266, 28.4595],
+  'gurugram': [77.0266, 28.4595],
+  'deoria': [83.7791, 26.5024],
+  'gorakhpur': [83.3732, 26.7606],
+  'lucknow': [80.9462, 26.8467],
+  'varanasi': [82.9739, 25.3176],
+  'agra': [78.0081, 27.1767],
+  'jaipur': [75.7873, 26.9124],
+  'kanpur': [80.3319, 26.4499],
+  'ghaziabad': [77.4538, 28.6692],
+  'faridabad': [77.3178, 28.4089],
+  'patna': [85.1376, 25.5941],
+  'prayagraj': [81.8463, 25.4358],
+  'allahabad': [81.8463, 25.4358],
+};
+
 export function normalizeCoordinates(value) {
   if (!value) {
+    return null;
+  }
+
+  // ----------------------------------------------------------
+  // String format (known city / landmark lookup)
+  // ----------------------------------------------------------
+  if (typeof value === 'string') {
+    const clean = value.trim().toLowerCase();
+    if (KNOWN_CITY_COORDINATES[clean]) {
+      return [...KNOWN_CITY_COORDINATES[clean]];
+    }
+    // Substring match for compound names like "Noida Sector 18" or "South Delhi"
+    for (const [cityName, coords] of Object.entries(KNOWN_CITY_COORDINATES)) {
+      if (clean.includes(cityName) || cityName.includes(clean)) {
+        return [...coords];
+      }
+    }
     return null;
   }
 

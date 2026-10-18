@@ -392,10 +392,12 @@ export default function HomePage({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-heading">
-              Available Cars Nearest to You
+              Available Cars Nearest to You {loading ? '(Searching fleet...)' : ''}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Showing cars within 100 KM of "{sourceAddress}" • Sorted by closest distance
+              {sourceAddress
+                ? `Showing cars within 100 KM of "${sourceAddress}" • Sorted by closest distance`
+                : 'Verified premium fleet cars ready for wedding, tour & event booking across India'}
             </p>
           </div>
 
@@ -429,22 +431,49 @@ export default function HomePage({
             ))}
           </div>
         ) : filteredCars.length === 0 ? (
-          <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-slate-200 shadow-sm">
-            <AlertCircle className="w-14 h-14 text-amber-500 mx-auto mb-3" />
+          <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-slate-200 shadow-sm space-y-3">
+            <AlertCircle className="w-14 h-14 text-amber-500 mx-auto" />
             <h3 className="text-lg font-bold text-slate-900">
-              No cars available within 100 KM of your pickup location
+              No cars available {sourceAddress ? `within 100 KM of "${sourceAddress}"` : 'in this category'}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              No active vehicle was found within 100 KM of "{sourceAddress}". Please try another nearby pickup area or submit a booking query directly to Admin.
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+              {sourceAddress
+                ? `No active vehicle was found within 100 KM of "${sourceAddress}". Please try another nearby pickup area or submit a booking query directly to Admin.`
+                : 'No vehicles match the selected category. Try selecting "All" or browse our full fleet.'}
             </p>
-            <button
-              type="button"
-              onClick={() => handleOpenQueryModal(null)}
-              className="mt-5 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow transition inline-flex items-center gap-2"
-            >
-              <PhoneCall className="w-4 h-4" />
-              Contact Admin / Submit Query
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setSelectedCategory('All');
+                  setSourceCoords(null);
+                  setSourceAddress('');
+                  setLoading(true);
+                  try {
+                    const res = await fetch('/api/cars');
+                    const data = await res.json();
+                    if (data.success) {
+                      setCars(data.cars || []);
+                    }
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-2xl shadow transition inline-flex items-center gap-2"
+              >
+                🚗 Browse All Fleet Cars
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenQueryModal(null)}
+                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow transition inline-flex items-center gap-2"
+              >
+                <PhoneCall className="w-4 h-4" />
+                Contact Admin / Custom Ride
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
