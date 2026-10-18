@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider } from './context/CompanyContext';
 import { SocketProvider } from './context/SocketContext';
@@ -32,6 +32,72 @@ import BookingModal from './components/cars/BookingModal';
 import MakeOfferModal from './components/cars/MakeOfferModal';
 import BulkBookingModal from './components/cars/BulkBookingModal';
 import FloatingWhatsAppButton from './components/common/FloatingWhatsAppButton';
+
+// React Error Boundary to catch any unforeseen runtime errors and prevent blank screens
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-3xl font-black mb-4">
+            ⚠️
+          </div>
+          <h2 className="text-2xl font-black font-heading mb-2">Something went wrong</h2>
+          <p className="text-slate-400 text-sm max-w-md mb-6">
+            An unexpected error occurred while loading this view. You can return to the home page safely.
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.href = '/';
+            }}
+            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black rounded-2xl shadow-xl text-sm transition"
+          >
+            Return to Home Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Route normalization helper to map URLs and aliases into supported page identifiers
+export function normalizePageName(page) {
+  if (!page) return 'home';
+  const clean = String(page).toLowerCase().replace(/^\/+|\/+$/g, '').trim();
+
+  if (!clean || clean === 'home') return 'home';
+  if (['cars', 'fleet', 'vehicles', 'car'].includes(clean)) return 'cars';
+  if (['services', 'service', 'packages', 'tours'].includes(clean)) return 'services';
+  if (['how-it-works', 'howitworks', 'process', 'how'].includes(clean)) return 'how-it-works';
+  if (['partner', 'partners', 'vendor', 'vendors', 'attach-car'].includes(clean)) return 'partner';
+  if (['about', 'about-us', 'aboutus'].includes(clean)) return 'about';
+  if (['contact', 'contact-us', 'contactus', 'support', 'help'].includes(clean)) return 'contact';
+  if (['login', 'signin', 'log-in'].includes(clean)) return 'login';
+  if (['register', 'signup', 'sign-up'].includes(clean)) return 'register';
+  if (['customer', 'customer-dashboard', 'my-bookings', 'dashboard'].includes(clean)) return 'customer-dashboard';
+  if (['owner', 'owner-dashboard', 'vendor-dashboard'].includes(clean)) return 'owner-dashboard';
+  if (['admin', 'admin-dashboard'].includes(clean)) return 'admin-dashboard';
+  if (['chat', 'messages'].includes(clean)) return 'chat';
+  if (['booking-confirmation', 'confirmed', 'receipt'].includes(clean)) return 'booking-confirmation';
+  if (['car-details'].includes(clean)) return 'car-details';
+
+  return 'home';
+}
 
 function FloatingInstallAppButton() {
   const { t } = useLanguage();
@@ -116,8 +182,25 @@ function FloatingFleetCartButton() {
 function MainLayout() {
   const { loading: authLoading, isAuthenticated, user, logout } = useAuth();
   const { t } = useLanguage();
-  const [currentPage, setCurrentPage] = useState('home');
+
+  // Initialize page from current browser pathname so direct URL navigation and refreshes work flawlessly
+  const [currentPage, setCurrentPage] = useState(() => {
+    return normalizePageName(window.location.pathname);
+  });
   const [pageParams, setPageParams] = useState({});
+
+  // Listen to browser Back / Forward history events
+  useEffect(() => {
+    const handlePopState = (e) => {
+      const normalized = normalizePageName(window.location.pathname);
+      setCurrentPage(normalized);
+      if (e.state) {
+        setPageParams(e.state);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -147,8 +230,16 @@ function MainLayout() {
   }
 
   const navigateTo = (page, params = {}) => {
-    setCurrentPage(page);
+    const normalized = normalizePageName(page);
+    setCurrentPage(normalized);
     setPageParams(params);
+
+    // Sync browser URL so address bar reflects current view
+    const targetUrl = normalized === 'home' ? '/' : `/${normalized}`;
+    if (window.location.pathname !== targetUrl) {
+      window.history.pushState(params, '', targetUrl);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -189,6 +280,24 @@ function MainLayout() {
     setConfirmedBookingData(booking);
     navigateTo('booking-confirmation');
   };
+
+  const KNOWN_PAGES = [
+    'home',
+    'cars',
+    'car-details',
+    'services',
+    'how-it-works',
+    'partner',
+    'about',
+    'contact',
+    'login',
+    'register',
+    'customer-dashboard',
+    'owner-dashboard',
+    'admin-dashboard',
+    'chat',
+    'booking-confirmation',
+  ];
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 selection:bg-amber-500 selection:text-white font-sans">
@@ -256,34 +365,46 @@ function MainLayout() {
         )}
 
         {currentPage === 'customer-dashboard' && (
-          <CustomerDashboard
-            key={`customer-${pageParams?.tab || 'default'}`}
-            initialTab={pageParams?.tab}
-            onNavigate={navigateTo}
-            onLogout={handleLogout}
-            onOpenChat={handleOpenChat}
-            onBookCar={handleOpenBooking}
-          />
+          isAuthenticated ? (
+            <CustomerDashboard
+              key={`customer-${pageParams?.tab || 'default'}`}
+              initialTab={pageParams?.tab}
+              onNavigate={navigateTo}
+              onLogout={handleLogout}
+              onOpenChat={handleOpenChat}
+              onBookCar={handleOpenBooking}
+            />
+          ) : (
+            <LoginPage onNavigate={navigateTo} />
+          )
         )}
 
         {currentPage === 'owner-dashboard' && (
-          <OwnerDashboard
-            key={`owner-${pageParams?.tab || 'default'}`}
-            initialTab={pageParams?.tab}
-            onNavigate={navigateTo}
-            onLogout={handleLogout}
-            onOpenChat={handleOpenChat}
-            onOpenDirectBooking={handleOpenDirectBooking}
-          />
+          isAuthenticated ? (
+            <OwnerDashboard
+              key={`owner-${pageParams?.tab || 'default'}`}
+              initialTab={pageParams?.tab}
+              onNavigate={navigateTo}
+              onLogout={handleLogout}
+              onOpenChat={handleOpenChat}
+              onOpenDirectBooking={handleOpenDirectBooking}
+            />
+          ) : (
+            <LoginPage onNavigate={navigateTo} />
+          )
         )}
 
         {currentPage === 'admin-dashboard' && (
-          <AdminDashboard
-            key={`admin-${pageParams?.tab || 'default'}`}
-            initialTab={pageParams?.tab}
-            onNavigate={navigateTo}
-            onLogout={handleLogout}
-          />
+          isAuthenticated && user?.role === 'admin' ? (
+            <AdminDashboard
+              key={`admin-${pageParams?.tab || 'default'}`}
+              initialTab={pageParams?.tab}
+              onNavigate={navigateTo}
+              onLogout={handleLogout}
+            />
+          ) : (
+            <LoginPage onNavigate={navigateTo} />
+          )
         )}
 
         {currentPage === 'chat' && (
@@ -297,10 +418,20 @@ function MainLayout() {
             onOpenChat={handleOpenChat}
           />
         )}
+
+        {/* Fallback for any unknown route so it NEVER renders a blank page */}
+        {!KNOWN_PAGES.includes(currentPage) && (
+          <HomePage
+            onNavigate={navigateTo}
+            onBookCar={handleOpenBooking}
+            onMakeOfferCar={handleOpenOffer}
+            onViewCarDetails={handleViewCarDetails}
+          />
+        )}
         </main>
 
-        {/* Universal Footer */}
-        {!['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage) && (
+        {/* Footer: Strictly displayed ONLY on the Home Page as requested */}
+        {currentPage === 'home' && (
           <Footer onNavigate={navigateTo} />
         )}
       </div>
@@ -348,18 +479,20 @@ function MainLayout() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <CompanyProvider>
-        <SocketProvider>
-          <NotificationProvider>
-            <LanguageProvider>
-              <CartProvider>
-                <MainLayout />
-              </CartProvider>
-            </LanguageProvider>
-          </NotificationProvider>
-        </SocketProvider>
-      </CompanyProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <CompanyProvider>
+          <SocketProvider>
+            <NotificationProvider>
+              <LanguageProvider>
+                <CartProvider>
+                  <MainLayout />
+                </CartProvider>
+              </LanguageProvider>
+            </NotificationProvider>
+          </SocketProvider>
+        </CompanyProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

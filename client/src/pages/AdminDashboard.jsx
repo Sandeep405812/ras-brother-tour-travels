@@ -43,10 +43,15 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
   const { showToast } = useNotification();
   const { company, setCompany, refreshCompany } = useCompany();
 
-  const [activeTab, setActiveTab] = useState(initialTab || 'bookings'); // 'bookings' | 'customers' | 'owners' | 'backup' | 'overview' | 'kyc' | 'coupons' | 'settings'
+  const VALID_ADMIN_TABS = ['bookings', 'customers', 'owners', 'backup', 'overview', 'kyc', 'coupons', 'settings', 'admin_security'];
+  const [activeTab, setActiveTab] = useState(
+    VALID_ADMIN_TABS.includes(initialTab) ? initialTab : 'bookings'
+  );
 
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
+    if (initialTab && VALID_ADMIN_TABS.includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
   }, [initialTab]);
 
   const [stats, setStats] = useState(null);

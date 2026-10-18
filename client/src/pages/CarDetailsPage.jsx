@@ -55,7 +55,11 @@ export default function CarDetailsPage({
       }
     };
 
-    if (carId) fetchCar();
+    if (carId) {
+      fetchCar();
+    } else {
+      setLoading(false);
+    }
   }, [carId]);
 
   if (loading) {

@@ -40,11 +40,19 @@ export default function OwnerDashboard({ onNavigate, onLogout, initialTab }) {
   const { lang, t } = useLanguage();
 
   // Tab state: 'cars' | 'bookings' | 'profile'
-  const [activeTab, setActiveTab] = useState(initialTab || 'cars');
+  const VALID_OWNER_TABS = ['cars', 'bookings', 'profile'];
+  const [activeTab, setActiveTab] = useState(
+    initialTab === 'add-car' ? 'cars' : (VALID_OWNER_TABS.includes(initialTab) ? initialTab : 'cars')
+  );
   const [bookingFilter, setBookingFilter] = useState('all');
 
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
+    if (initialTab === 'add-car') {
+      setActiveTab('cars');
+      setCarModalOpen(true);
+    } else if (initialTab && VALID_OWNER_TABS.includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
   }, [initialTab]);
 
   // Profile Form State
@@ -836,7 +844,7 @@ export default function OwnerDashboard({ onNavigate, onLogout, initialTab }) {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'bookings' ? (
           /* TAB 2: BOOKINGS */
           <div className="space-y-6">
             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
@@ -1096,10 +1104,8 @@ export default function OwnerDashboard({ onNavigate, onLogout, initialTab }) {
               </div>
             )}
           </div>
-        )}
-
-        {/* TAB 3: OWNER PROFILE & SETTINGS */}
-        {activeTab === 'profile' && (
+        ) : activeTab === 'profile' ? (
+          /* TAB 3: OWNER PROFILE & SETTINGS */
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 max-w-3xl mx-auto text-white">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
@@ -1241,7 +1247,7 @@ export default function OwnerDashboard({ onNavigate, onLogout, initialTab }) {
               </div>
             </form>
           </div>
-        )}
+        ) : null}
       </main>
 
       {/* MODAL 1: ADD / EDIT CAR */}

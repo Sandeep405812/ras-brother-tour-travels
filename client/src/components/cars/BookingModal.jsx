@@ -565,9 +565,7 @@ export default function BookingModal({
                   onClose();
 
                   if (onNavigate) {
-                    onNavigate(
-                      'customer'
-                    );
+                    onNavigate('customer-dashboard');
                   }
                 }}
                 className="flex-1 py-3 rounded-2xl font-black text-xs bg-slate-900 hover:bg-slate-800 text-white shadow transition"

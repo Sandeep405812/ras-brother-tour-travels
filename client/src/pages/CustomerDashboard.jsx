@@ -36,10 +36,15 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
   const { showToast } = useNotification();
   const { lang, t } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState(initialTab || 'bookings'); // 'bookings' | 'offers' | 'payments' | 'profile'
+  const VALID_CUSTOMER_TABS = ['bookings', 'offers', 'payments', 'profile'];
+  const [activeTab, setActiveTab] = useState(
+    VALID_CUSTOMER_TABS.includes(initialTab) ? initialTab : 'bookings'
+  );
 
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
+    if (initialTab && VALID_CUSTOMER_TABS.includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
   }, [initialTab]);
 
   const [bookings, setBookings] = useState([]);

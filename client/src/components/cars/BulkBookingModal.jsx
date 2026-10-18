@@ -173,7 +173,7 @@ export default function BulkBookingModal({ onNavigate }) {
         }
         clearCart();
         setIsCartOpen(false);
-        if (onNavigate) onNavigate('customer');
+        if (onNavigate) onNavigate('customer-dashboard');
       } else {
         showToast(data.message || 'Failed to place bulk booking.', 'error');
       }
