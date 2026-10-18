@@ -8,7 +8,7 @@ function GoogleMap() {
     const loadMap = async () => {
       try {
         setOptions({
-          key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+          key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyCRkPmfLzNuvIJxZMoKdNf4lw97ImyCXU8',
           v: "weekly",
         });
 
