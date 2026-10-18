@@ -32,6 +32,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { uploadSingleFile } from '../utils/imageUpload';
+import LocationAutocomplete from '../components/common/LocationAutocomplete';
 
 export default function OwnerDashboard({ onNavigate, onLogout }) {
   const { user, token } = useAuth();
@@ -112,8 +113,9 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
     name: '',
     brand: 'Standard',
     model: '2024',
-    perKm: 20,
+    perKm: '',
     locationAddress: '',
+    locationCoords: null,
     fuelIncluded: true,
     seatingCapacity: 5,
     fuelType: 'Diesel',
@@ -202,8 +204,12 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       name: car.name || '',
       brand: car.brand || 'Standard',
       model: car.model || '2024',
-      perKm: car.pricing?.perKm || car.pricing?.extraKmRate || 20,
+      perKm: car.pricing?.perKm ?? car.pricing?.extraKmRate ?? '',
       locationAddress: car.location?.address || car.location?.city || '',
+      locationCoords:
+        Array.isArray(car.location?.coordinates) && car.location.coordinates.length >= 2
+          ? [Number(car.location.coordinates[0]), Number(car.location.coordinates[1])]
+          : null,
       fuelIncluded: car.fuelIncluded !== undefined ? car.fuelIncluded : true,
       seatingCapacity: car.seatingCapacity || 5,
       fuelType: car.fuelType || 'Diesel',
@@ -222,7 +228,30 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       return;
     }
     if (!carForm.locationAddress.trim()) {
-      showToast(t('Please enter location', 'गाड़ी कहाँ उपलब्ध है, वह जगह भरें'), 'error');
+      showToast(t('Please select vehicle location', 'कृपया गाड़ी की सही लोकेशन चुनें'), 'error');
+      return;
+    }
+
+    const perKm = Number(carForm.perKm);
+    const coordinates = Array.isArray(carForm.locationCoords)
+      ? carForm.locationCoords.map(Number)
+      : null;
+
+    if (!Number.isFinite(perKm) || perKm <= 0) {
+      showToast(t('Please enter a valid per KM rate', 'कृपया सही प्रति KM किराया डालें'), 'error');
+      return;
+    }
+
+    if (
+      !coordinates ||
+      coordinates.length < 2 ||
+      !Number.isFinite(coordinates[0]) ||
+      !Number.isFinite(coordinates[1])
+    ) {
+      showToast(
+        t('Please select a location from Google suggestions', 'कृपया Google suggestions में से अपनी गाड़ी की लोकेशन चुनें'),
+        'error'
+      );
       return;
     }
 
@@ -231,18 +260,20 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         name: carForm.name.trim(),
         brand: carForm.brand.trim() || 'Standard',
         model: carForm.model.trim() || '2024',
-        perKm: Number(carForm.perKm) || 20,
+        perKm,
         pricing: {
-          perKm: Number(carForm.perKm) || 20,
-          extraKmRate: Number(carForm.perKm) || 20,
-          perDay: (Number(carForm.perKm) || 20) * 100,
-          basePrice: Number(carForm.perKm) || 20,
+          perKm,
+          extraKmRate: perKm,
+          perDay: perKm * 100,
+          basePrice: perKm,
         },
+        lng: coordinates[0],
+        lat: coordinates[1],
         location: {
           address: carForm.locationAddress.trim(),
           city: carForm.locationAddress.trim(),
           type: 'Point',
-          coordinates: [83.7784, 26.5024],
+          coordinates,
         },
         address: carForm.locationAddress.trim(),
         city: carForm.locationAddress.trim(),
@@ -600,7 +631,8 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {myFleet.map((car) => {
-                  const rate = car.pricing?.perKm || car.pricing?.extraKmRate || 20;
+                  const rate = Number(car.pricing?.perKm ?? car.pricing?.extraKmRate);
+                  const hasRate = Number.isFinite(rate) && rate > 0;
                   const blockedCount = car.unavailableDates?.length || 0;
                   const mainImg = car.images?.main || '/brand/ras-logo-primary.svg';
 
@@ -620,7 +652,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                           }}
                         />
                         <div className="absolute top-3 left-3 bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-black text-amber-400 border border-slate-800">
-                          ₹{rate}/km
+                          {hasRate ? `₹${rate}/km` : t('Rate not set', 'रेट सेट नहीं है')}
                         </div>
 
                         <div className="absolute top-3 right-3">
@@ -654,7 +686,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                           <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-2">
                             <MapPin className="w-4 h-4 text-amber-400 shrink-0" />
                             <span className="font-semibold truncate">
-                              {car.location?.address || car.location?.city || 'Deoria'}
+                              {car.location?.address || car.location?.city || 'Location not set'}
                             </span>
                           </div>
 
@@ -826,7 +858,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                             />
                             <div>
                               <h4 className="font-black text-sm text-white">{b.car?.name || 'Car'}</h4>
-                              <p className="text-xs text-amber-400 font-semibold">₹{b.car?.pricing?.perKm || 20}/km</p>
+                              <p className="text-xs text-amber-400 font-semibold">{Number.isFinite(Number(b.car?.pricing?.perKm)) && Number(b.car?.pricing?.perKm) > 0 ? `₹${Number(b.car.pricing.perKm)}/km` : t('Rate not set', 'रेट सेट नहीं है')}</p>
                               {b.car?.fuelIncluded ? (
                                 <span className="text-[10px] text-emerald-400 font-semibold">⛽ {t('Fuel Included', 'तेल शामिल है')}</span>
                               ) : (
@@ -1037,16 +1069,34 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
 
                 <div>
                   <label className="text-slate-300 block mb-1">
-                    {t('Location / City', 'गाड़ी कहाँ उपलब्ध है')} <span className="text-rose-400">*</span>
+                    {t('Vehicle Location', 'गाड़ी की लोकेशन')} <span className="text-rose-400">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={t('e.g. Deoria, Gorakhpur', 'उदा. Deoria, Gorakhpur')}
+                  <LocationAutocomplete
                     value={carForm.locationAddress}
-                    onChange={(e) => setCarForm({ ...carForm, locationAddress: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    allowGps={true}
+                    label=""
+                    placeholder={t('Search city, village, locality or street', 'शहर, गांव, मोहल्ला या सड़क खोजें')}
+                    iconColor="text-amber-400"
+                    inputClassName="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    onChange={(value) =>
+                      setCarForm((prev) => ({
+                        ...prev,
+                        locationAddress: value,
+                        locationCoords: null,
+                      }))
+                    }
+                    onSelectCoords={(coords) => {
+                      if (Array.isArray(coords) && coords.length >= 2) {
+                        setCarForm((prev) => ({
+                          ...prev,
+                          locationCoords: [Number(coords[1]), Number(coords[0])],
+                        }));
+                      }
+                    }}
                   />
+                  <p className="text-[10px] text-slate-500 mt-1.5">
+                    {t('Select a Google suggestion so the exact coordinates are saved.', 'Google suggestion में से location चुनें ताकि exact coordinates save हों।')}
+                  </p>
                 </div>
               </div>
 

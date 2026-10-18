@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CarCard from '../components/cars/CarCard';
 import LocationAutocomplete from '../components/common/LocationAutocomplete';
 import RouteMapPicker from '../components/common/RouteMapPicker';
-import { resolveCoordinates, calculateHaversineDistance, getRoadDistance } from '../utils/distanceCalculator';
+import { calculateHaversineDistance, getRoadDistance } from '../utils/distanceCalculator';
 import {
   Search,
   MapPin,
@@ -33,11 +33,11 @@ export default function HomePage({
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Route Search State (Source to Destination)
-  const [sourceAddress, setSourceAddress] = useState('New Delhi');
-  const [destinationAddress, setDestinationAddress] = useState('Noida Sector 18');
-  const [sourceCoords, setSourceCoords] = useState([77.2090, 28.6139]);
-  const [destCoords, setDestCoords] = useState([77.3244, 28.5708]);
-  const [estimatedKm, setEstimatedKm] = useState(25);
+  const [sourceAddress, setSourceAddress] = useState('');
+  const [destinationAddress, setDestinationAddress] = useState('');
+  const [sourceCoords, setSourceCoords] = useState(null);
+  const [destCoords, setDestCoords] = useState(null);
+  const [estimatedKm, setEstimatedKm] = useState(null);
   const [estimatedDuration, setEstimatedDuration] = useState(null);
   const [tripDate, setTripDate] = useState(
     new Date(Date.now() + 86400000).toISOString().split('T')[0]
@@ -50,25 +50,30 @@ export default function HomePage({
   const [queryForm, setQueryForm] = useState({ name: '', phone: '', message: '' });
   const [submittingQuery, setSubmittingQuery] = useState(false);
 
-  // Recalculate distance dynamically using OSRM real road distance
+  // Recalculate distance dynamically using Google Routes API
   useEffect(() => {
-    const c1 = sourceCoords || resolveCoordinates(sourceAddress);
-    const c2 = destCoords || resolveCoordinates(destinationAddress);
+    if (!sourceCoords || !destCoords) {
+      setEstimatedKm(null);
+      setEstimatedDuration(null);
+      return;
+    }
 
-    // Show instant Haversine estimate first
-    const instantKm = calculateHaversineDistance(c1, c2);
-    setEstimatedKm(instantKm > 0 ? instantKm : 25);
+    const instantKm = calculateHaversineDistance(sourceCoords, destCoords);
+    setEstimatedKm(instantKm > 0 ? instantKm : null);
 
-    // Then fetch exact road distance from OSRM
     let cancelled = false;
-    getRoadDistance(c1, c2).then((result) => {
-      if (!cancelled && result.distanceKm > 0) {
+
+    getRoadDistance(sourceCoords, destCoords).then((result) => {
+      if (!cancelled && result?.distanceKm > 0) {
         setEstimatedKm(result.distanceKm);
         setEstimatedDuration(result.durationMin || null);
       }
     });
-    return () => { cancelled = true; };
-  }, [sourceAddress, destinationAddress, sourceCoords, destCoords]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceCoords, destCoords]);
 
   // GPS Location Detector
   const handleFindNearMe = () => {
@@ -85,8 +90,8 @@ export default function HomePage({
       },
       (err) => {
         console.warn('Geolocation error:', err.message);
-        setSourceCoords([77.2090, 28.6139]);
-        setSourceAddress('New Delhi');
+        setSourceCoords(null);
+        setSourceAddress('');
         setDetectingGps(false);
       },
       { timeout: 8000, enableHighAccuracy: true }
@@ -129,6 +134,15 @@ export default function HomePage({
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+
+    if (!sourceCoords) {
+      showToast(
+        'Please select a valid pickup location from Google suggestions or the map.',
+        'error'
+      );
+      return;
+    }
+
     fetchCars();
   };
 
@@ -223,7 +237,7 @@ export default function HomePage({
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-300">
                 <span className="bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 font-bold">
-                  📍 Est. Distance: <strong className="text-amber-400 font-black text-sm">{estimatedKm} KM</strong>
+                  📍 Est. Distance: <strong className="text-amber-400 font-black text-sm">{estimatedKm !== null ? `${estimatedKm} KM` : 'Select pickup & drop'}</strong>
                 </span>
                 <button
                   type="button"
@@ -261,10 +275,14 @@ export default function HomePage({
                   inputClassName="w-full bg-slate-800 border border-slate-700 rounded-2xl px-3.5 py-3 text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
                   onChange={(val) => {
                     setSourceAddress(val);
-                    setSourceCoords(resolveCoordinates(val));
+                    setSourceCoords(null);
                   }}
                   onSelectCoords={(coords) => {
-                    setSourceCoords(coords);
+                    if (Array.isArray(coords) && coords.length >= 2) {
+                      setSourceCoords([Number(coords[1]), Number(coords[0])]);
+                    } else {
+                      setSourceCoords(null);
+                    }
                   }}
                 />
               </div>
@@ -281,10 +299,14 @@ export default function HomePage({
                   inputClassName="w-full bg-slate-800 border border-slate-700 rounded-2xl px-3.5 py-3 text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
                   onChange={(val) => {
                     setDestinationAddress(val);
-                    setDestCoords(resolveCoordinates(val));
+                    setDestCoords(null);
                   }}
                   onSelectCoords={(coords) => {
-                    setDestCoords(coords);
+                    if (Array.isArray(coords) && coords.length >= 2) {
+                      setDestCoords([Number(coords[1]), Number(coords[0])]);
+                    } else {
+                      setDestCoords(null);
+                    }
                   }}
                 />
               </div>
@@ -530,7 +552,7 @@ export default function HomePage({
               </div>
 
               <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-[11px] text-amber-800 space-y-1">
-                <div>📍 <strong>Route:</strong> {sourceAddress} ➔ {destinationAddress} ({estimatedKm} KM)</div>
+                <div>📍 <strong>Route:</strong> {sourceAddress} ➔ {destinationAddress} ({estimatedKm !== null ? `${estimatedKm} KM` : 'Distance not calculated'})</div>
                 <div>🗓️ <strong>Date:</strong> {tripDate}</div>
               </div>
 
