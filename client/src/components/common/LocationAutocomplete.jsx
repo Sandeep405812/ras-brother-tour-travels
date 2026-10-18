@@ -500,6 +500,15 @@ export default function LocationAutocomplete({
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (suggestions.length > 0) {
+        e.preventDefault();
+        handleSelectPlace(suggestions[0]);
+      }
+    }
+  };
+
   // =========================================================
   // SELECT GOOGLE PLACE
   // =========================================================
@@ -824,6 +833,7 @@ export default function LocationAutocomplete({
           onChange={
             handleInputChange
           }
+          onKeyDown={handleKeyDown}
           onFocus={() =>
             setIsOpen(true)
           }

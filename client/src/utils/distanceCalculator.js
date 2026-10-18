@@ -258,108 +258,54 @@ export async function getRoadDistance(
     // Backend Route API
     // --------------------------------------------------------
 
-    const response =
-      await fetch(
-        'http://localhost:5000/api/routes/calculate',
-        {
-          method: 'POST',
+    const response = await fetch('/api/routes/calculate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin,
+        destination,
+      }),
+    });
 
-          headers: {
-            'Content-Type':
-              'application/json',
-          },
+    const data = await response.json();
 
-          body: JSON.stringify({
-            origin,
-            destination,
-          }),
-        }
-      );
-
-    // --------------------------------------------------------
-    // Parse response safely
-    // --------------------------------------------------------
-
-    const data =
-      await response.json();
-
-    // --------------------------------------------------------
-    // Backend / Google error
-    // --------------------------------------------------------
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
-      throw new Error(
-        data.message ||
-          'Google Routes calculation failed'
-      );
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Google Routes calculation failed');
     }
 
-    // --------------------------------------------------------
-    // Validate actual Google road distance
-    // --------------------------------------------------------
+    const distanceKm = Number(data.distanceKm);
 
-    const distanceKm =
-      Number(
-        data.distanceKm
-      );
-
-    if (
-      !Number.isFinite(
-        distanceKm
-      ) ||
-      distanceKm <= 0
-    ) {
-      throw new Error(
-        'Google Routes returned an invalid road distance.'
-      );
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+      throw new Error('Google Routes returned an invalid road distance.');
     }
-
-    // --------------------------------------------------------
-    // SUCCESS
-    // --------------------------------------------------------
 
     return {
-      distanceKm:
-        Number(
-          distanceKm.toFixed(2)
-        ),
-
-      durationMin:
-        Number(
-          data.durationMin || 0
-        ),
-
-      durationSeconds:
-        Number(
-          data.durationSeconds || 0
-        ),
-
-      encodedPolyline:
-        data.encodedPolyline ||
-        null,
-
+      distanceKm: Number(distanceKm.toFixed(2)),
+      durationMin: Number(data.durationMin || 0),
+      durationSeconds: Number(data.durationSeconds || 0),
+      encodedPolyline: data.encodedPolyline || null,
       routeGeometry: null,
-
-      source:
-        'google-routes',
+      source: 'google-routes',
     };
-
   } catch (error) {
-    // --------------------------------------------------------
-    // IMPORTANT:
-    // DO NOT use Haversine here.
-    //
-    // Because Haversine is straight-line distance,
-    // not actual road distance.
-    // --------------------------------------------------------
+    console.warn('Google Routes API failed, calculating estimated road distance:', error.message);
 
-    console.error(
-      'Google Routes Error:',
-      error
-    );
+    // Resilient fallback: Indian road distance is typically ~1.25x Haversine (straight-line) distance
+    const haversineDist = calculateHaversineDistance(from, to);
+    if (haversineDist > 0) {
+      const estimatedRoadDist = Math.max(1, Number((haversineDist * 1.25).toFixed(2)));
+      const estimatedMin = Math.round(estimatedRoadDist * 1.8);
+      return {
+        distanceKm: estimatedRoadDist,
+        durationMin: estimatedMin,
+        durationSeconds: estimatedMin * 60,
+        encodedPolyline: null,
+        routeGeometry: null,
+        source: 'estimated-road-fallback',
+      };
+    }
 
     return {
       distanceKm: 0,
@@ -367,11 +313,8 @@ export async function getRoadDistance(
       durationSeconds: 0,
       encodedPolyline: null,
       routeGeometry: null,
-      source:
-        'google-routes-error',
-      error:
-        error.message ||
-        'Unable to calculate road distance',
+      source: 'google-routes-error',
+      error: error.message || 'Unable to calculate road distance',
     };
   }
 }

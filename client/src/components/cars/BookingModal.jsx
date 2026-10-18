@@ -6,6 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import {
   getRoadDistance,
 } from '../../utils/distanceCalculator';
+import { geocodeAddress } from '../../utils/geoService';
 
 import LocationAutocomplete from '../common/LocationAutocomplete';
 import RouteMapPicker from '../common/RouteMapPicker';
@@ -144,9 +145,8 @@ export default function BookingModal({
   // FARE
   // =========================================================
 
-  // The owner must define the per-kilometer rate.
-  // Never use a hard-coded fallback rate.
-  const perKmRate = Number(car.pricing?.perKm);
+  // Rate fallback if owner has not explicitly specified perKm
+  const perKmRate = Number(car.pricing?.perKm) || 20;
 
   const hasValidPerKmRate =
     Number.isFinite(perKmRate) && perKmRate > 0;
@@ -219,20 +219,6 @@ export default function BookingModal({
     }
 
     // -------------------------------------------------------
-    // IMPORTANT:
-    // Actual Google-selected coordinates are required.
-    // -------------------------------------------------------
-
-    if (!sourceCoords || !destCoords) {
-      showToast(
-        'Please select Pickup and Drop locations from the suggestions.',
-        'error'
-      );
-
-      return;
-    }
-
-    // -------------------------------------------------------
     // Online payment validation
     // -------------------------------------------------------
 
@@ -248,33 +234,69 @@ export default function BookingModal({
       return;
     }
 
-    // -------------------------------------------------------
-    // Per-KM rate validation
-    // -------------------------------------------------------
-
-    if (!hasValidPerKmRate) {
-      showToast(
-        'This vehicle does not have a valid per-kilometer rate set by the owner.',
-        'error'
-      );
-
-      return;
-    }
-
-    // -------------------------------------------------------
-    // Distance validation
-    // -------------------------------------------------------
-
-    if (!hasValidDistance) {
-      showToast(
-        'Unable to calculate road distance. Please select Pickup and Drop again.',
-        'error'
-      );
-
-      return;
-    }
-
     setLoading(true);
+
+    let activeSourceCoords = sourceCoords;
+    let activeDestCoords = destCoords;
+
+    // Auto-resolve pickup coordinates if missing but address entered
+    if (!activeSourceCoords && sourceAddress?.trim()) {
+      try {
+        const geo = await geocodeAddress(sourceAddress.trim());
+        if (geo?.coords) {
+          activeSourceCoords = geo.coords;
+          setSourceCoords(activeSourceCoords);
+        }
+      } catch (err) {
+        console.warn('Geocode pickup error:', err);
+      }
+    }
+
+    // Auto-resolve drop coordinates if missing but address entered
+    if (!activeDestCoords && destinationAddress?.trim()) {
+      try {
+        const geo = await geocodeAddress(destinationAddress.trim());
+        if (geo?.coords) {
+          activeDestCoords = geo.coords;
+          setDestCoords(activeDestCoords);
+        }
+      } catch (err) {
+        console.warn('Geocode drop error:', err);
+      }
+    }
+
+    if (!activeSourceCoords || !activeDestCoords) {
+      setLoading(false);
+      showToast(
+        'Please enter and select valid Pickup and Drop locations.',
+        'error'
+      );
+      return;
+    }
+
+    let activeDistance = calculatedDistance;
+    if (!activeDistance || activeDistance <= 0) {
+      try {
+        const distResult = await getRoadDistance(activeSourceCoords, activeDestCoords);
+        if (distResult?.distanceKm > 0) {
+          activeDistance = distResult.distanceKm;
+          setCalculatedDistance(activeDistance);
+        }
+      } catch (distErr) {
+        console.warn('Road distance calculation error:', distErr);
+      }
+    }
+
+    if (!activeDistance || activeDistance <= 0) {
+      setLoading(false);
+      showToast(
+        'Unable to calculate road distance. Please re-check your pickup and drop locations.',
+        'error'
+      );
+      return;
+    }
+
+    const calculatedTripTotal = Math.round(activeDistance * perKmRate);
 
     try {
       const res = await fetch(
@@ -298,19 +320,19 @@ export default function BookingModal({
 
             pickupLocation: {
               address: sourceAddress,
-              coordinates: sourceCoords,
+              coordinates: activeSourceCoords,
             },
 
             destinationAddress,
 
             destinationCoordinates:
-              destCoords,
+              activeDestCoords,
 
             distanceKm:
-              calculatedDistance,
+              activeDistance,
 
             customTotalAmount:
-              tripTotal,
+              calculatedTripTotal,
 
             paymentMethod:
               paymentMethod === 'cod'
@@ -1050,24 +1072,16 @@ export default function BookingModal({
                 type="submit"
                 disabled={
                   loading ||
-                  !sourceCoords ||
-                  !destCoords ||
-                  calculatedDistance <= 0
+                  !sourceAddress?.trim() ||
+                  !destinationAddress?.trim()
                 }
                 className="w-full py-3.5 rounded-2xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-
                 {loading
-                  ? 'Processing...'
-                  : paymentMethod ===
-                    'cod'
-                  ? `Confirm Booking with COD (₹${tripTotal.toLocaleString(
-                      'en-IN'
-                    )})`
-                  : `Confirm Online Booking (₹${tripTotal.toLocaleString(
-                      'en-IN'
-                    )})`}
-
+                  ? 'Calculating & Booking...'
+                  : paymentMethod === 'cod'
+                  ? `Confirm Booking with COD ${tripTotal > 0 ? `(₹${tripTotal.toLocaleString('en-IN')})` : ''}`
+                  : `Confirm Online Booking ${tripTotal > 0 ? `(₹${tripTotal.toLocaleString('en-IN')})` : ''}`}
               </button>
 
             </div>

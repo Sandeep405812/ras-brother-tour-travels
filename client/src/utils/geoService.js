@@ -439,3 +439,60 @@ export function detectGpsLocation() {
     }
   );
 }
+
+// ---------------------------------------------------------
+// Geocode text address to coordinates (Google Geocoding + OSM fallback)
+// ---------------------------------------------------------
+export async function geocodeAddress(searchText) {
+  if (!searchText || !searchText.trim()) return null;
+  const text = searchText.trim();
+
+  // Try Google Geocoding first
+  try {
+    const { Geocoder } = await importLibrary('geocoding');
+    const geocoder = new Geocoder();
+    const response = await geocoder.geocode({
+      address: text,
+      region: 'IN',
+    });
+    const results = response?.results || [];
+    if (results.length > 0 && results[0]?.geometry?.location) {
+      const loc = results[0].geometry.location;
+      const lat = typeof loc.lat === 'function' ? loc.lat() : Number(loc.lat);
+      const lng = typeof loc.lng === 'function' ? loc.lng() : Number(loc.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return {
+          address: results[0].formatted_address || text,
+          lat,
+          lng,
+          coords: [lat, lng],
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Google geocoding fallback to OSM:', err.message);
+  }
+
+  // Fallback to OpenStreetMap Nominatim
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&countrycodes=in&limit=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en,hi' } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const lat = Number(data[0].lat);
+        const lng = Number(data[0].lon);
+        return {
+          address: data[0].display_name || text,
+          lat,
+          lng,
+          coords: [lat, lng],
+        };
+      }
+    }
+  } catch (osmErr) {
+    console.warn('Nominatim geocode failed:', osmErr.message);
+  }
+
+  return null;
+}

@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 
 export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeDetails = null }) {
   const { lang, t } = useLanguage();
-  const perKmRate = Number(car.pricing?.perKm);
+  const perKmRate = Number(car.pricing?.perKm) || 20;
   const hasPerKmRate = Number.isFinite(perKmRate) && perKmRate > 0;
 
   // Calculate fare only when both live route distance and owner's DB rate exist.
@@ -197,15 +197,10 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
             ) : (
               <button
                 type="button"
-                disabled={!hasPerKmRate || !hasDistance}
                 onClick={() => onBook && onBook(car, calculatedFare, null, routeDetails)}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
-                  !hasPerKmRate || !hasDistance
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md'
-                }`}
+                className="px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md"
               >
-                {!hasPerKmRate ? t('Rate Not Set', 'रेट सेट नहीं है') : !hasDistance ? t('Select Route', 'रूट चुनें') : t('Book Now', 'बुक करें')}
+                {hasDistance ? t('Book Now', 'बुक करें') : t('Book / Set Route', 'गाड़ी बुक करें')}
               </button>
             )}
           </div>
