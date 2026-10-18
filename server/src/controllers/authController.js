@@ -3,7 +3,8 @@ const OwnerProfile = require('../models/OwnerProfile');
 const jwt = require('jsonwebtoken');
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'ras_brother_tour_travels_jwt_secret_key_2026_99x', {
+  const secret = process.env.JWT_SECRET || 'dev_secret_jwt_key_fallback';
+  return jwt.sign({ id }, secret, {
     expiresIn: '30d',
   });
 };
@@ -97,10 +98,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    let isMatch = await user.matchPassword(password);
-    if (!isMatch && user.role === 'admin' && (password === 'admin123' || password === '123456')) {
-      isMatch = true;
-    }
+    const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,

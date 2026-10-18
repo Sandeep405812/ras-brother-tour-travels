@@ -16,7 +16,8 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'ras_brother_tour_travels_jwt_secret_key_2026_99x');
+    const secret = process.env.JWT_SECRET || 'dev_secret_jwt_key_fallback';
+    const decoded = jwt.verify(token, secret);
     const user = await User.findById(decoded.id);
 
     if (!user) {

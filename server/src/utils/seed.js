@@ -84,11 +84,13 @@ const seedData = async () => {
     ]);
 
     console.log('[Seed]: Creating Users...');
+    const defaultSeedPassword = process.env.SEED_DEFAULT_PASSWORD || 'DevSeed2026!Secure';
+
     // Admin
     const admin = await User.create({
       name: 'Admin RAS Brother',
       email: 'admin@rasbrother.com',
-      password: 'admin123',
+      password: defaultSeedPassword,
       phone: '+91 98765 00001',
       role: 'admin',
       address: 'Corporate Tower, Central Delhi',
@@ -101,7 +103,7 @@ const seedData = async () => {
     const owner1 = await User.create({
       name: 'Vikramaditya Rathore',
       email: 'owner1@rasbrother.com',
-      password: 'owner123',
+      password: defaultSeedPassword,
       phone: '+91 98765 11111',
       role: 'owner',
       address: 'Block C, Sector 15, Noida',
@@ -134,7 +136,7 @@ const seedData = async () => {
     const owner2 = await User.create({
       name: 'Simranjeet Singh',
       email: 'owner2@rasbrother.com',
-      password: 'owner123',
+      password: defaultSeedPassword,
       phone: '+91 98765 22222',
       role: 'owner',
       address: 'Ring Road, South Extension, New Delhi',
@@ -168,7 +170,7 @@ const seedData = async () => {
     const customer1 = await User.create({
       name: 'Rahul Sharma',
       email: 'customer1@rasbrother.com',
-      password: 'customer123',
+      password: defaultSeedPassword,
       phone: '+91 98111 55555',
       role: 'customer',
       address: 'Indirapuram, Ghaziabad',
@@ -180,7 +182,7 @@ const seedData = async () => {
     const customer2 = await User.create({
       name: 'Pooja Verma',
       email: 'customer2@rasbrother.com',
-      password: 'customer123',
+      password: defaultSeedPassword,
       phone: '+91 98111 66666',
       role: 'customer',
       address: 'Greater Kailash 1, New Delhi',
@@ -711,11 +713,7 @@ const seedData = async () => {
 
     console.log('[Seed]: Successfully completed database seeding!');
     console.log('----------------------------------------------------');
-    console.log('Login credentials:');
-    console.log('  Admin:    admin@rasbrother.com / admin123');
-    console.log('  Owner 1:  owner1@rasbrother.com / owner123');
-    console.log('  Owner 2:  owner2@rasbrother.com / owner123');
-    console.log('  Customer: customer1@rasbrother.com / customer123');
+    console.log('Database seeded with admin, fleet owner, and customer accounts.');
     console.log('----------------------------------------------------');
     process.exit(0);
   } catch (error) {

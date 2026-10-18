@@ -79,7 +79,7 @@ const calculateServerRoadDistance = async (origin, destination) => {
     };
   };
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyCRkPmfLzNuvIJxZMoKdNf4lw97ImyCXU8';
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
 
   if (!apiKey) {
     return calculateHaversineRoad();

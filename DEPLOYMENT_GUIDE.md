@@ -87,7 +87,6 @@ The application will be live at `http://localhost:5000` (or `PORT` from environm
 
 ---
 
-## 5. Admin & Default Credentials
-- **Admin Console**: `admin@rasbrothertravels.com` / `admin123` (or `admin@rasbrother.com` / `123456`)
-- **Fleet Owner**: `123@gmail.com` / `123456`
-- **Customer**: `1234@gmail.com` / `123456`
+## 5. Initial User Setup
+- Admin and initial accounts should be registered via the `/register` portal or initialized securely through your environment variables.
+- After registering the admin user, set their role to `admin` in MongoDB or run the seed utility in a private environment.

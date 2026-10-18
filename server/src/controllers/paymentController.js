@@ -81,7 +81,7 @@ exports.createOrder = async (req, res, next) => {
         amount: amountToPay * 100,
         currency: 'INR',
         receipt: orderReceipt,
-        key: process.env.RAZORPAY_KEY_ID || 'rzp_test_rasbrother2026',
+        key: process.env.RAZORPAY_KEY_ID || '',
         paymentRecordId: payment._id,
         bookingDetails: {
           bookingId: booking.bookingId,
