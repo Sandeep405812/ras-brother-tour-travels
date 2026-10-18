@@ -4,15 +4,14 @@ import { useLanguage } from '../../context/LanguageContext';
 
 export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeDetails = null }) {
   const { lang, t } = useLanguage();
-  const perKmRate = Number(car.pricing?.perKm);
-  const hasPerKmRate = Number.isFinite(perKmRate) && perKmRate > 0;
+  const perKmRate = car.pricing?.perKm || 20;
+  const pricePerDay = car.pricing?.perDay || car.pricing?.basePrice || 2000;
 
-  // Calculate fare only when both live route distance and owner's DB rate exist.
-  const distanceKm = Number(routeDetails?.calculatedDistance);
-  const hasDistance = Number.isFinite(distanceKm) && distanceKm > 0;
-  const calculatedFare = hasDistance && hasPerKmRate
+  // Calculate fare directly: distanceKm * perKmRate (Exact calculation)
+  const distanceKm = routeDetails?.calculatedDistance || null;
+  const calculatedFare = distanceKm
     ? Math.round(distanceKm * perKmRate)
-    : null;
+    : pricePerDay;
 
   const isUnavailable = Boolean(car.isUnavailableOnDate);
   const unavailableReason = car.unavailableReason || (lang === 'hi' ? 'इस तारीख पर पहले से बुक है' : 'Already Booked on this date');
@@ -124,7 +123,7 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
         </div>
 
         {/* Transparent Live KM & Fare Breakdown if route calculated */}
-        {hasDistance && hasPerKmRate && (
+        {distanceKm && (
           <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-2.5 mt-3 text-xs text-emerald-950 space-y-1">
             <div className="flex items-center justify-between font-bold">
               <span className="text-[11px] text-emerald-800">{t('Estimated Fare:', 'कुल अनुमानित किराया:')}</span>
@@ -144,8 +143,7 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
           <div>
             <div className="text-[10px] text-slate-500 font-bold uppercase">{t('Rate', 'किराया')}</div>
             <div className="text-lg font-black text-slate-900 leading-none">
-              {hasPerKmRate ? `₹${perKmRate}` : 'Rate not set'}
-              {hasPerKmRate && <span className="text-xs font-semibold text-slate-500">/km</span>}
+              ₹{perKmRate}<span className="text-xs font-semibold text-slate-500">/km</span>
             </div>
           </div>
 
@@ -197,15 +195,10 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
             ) : (
               <button
                 type="button"
-                disabled={!hasPerKmRate || !hasDistance}
                 onClick={() => onBook && onBook(car, calculatedFare, null, routeDetails)}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
-                  !hasPerKmRate || !hasDistance
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md'
-                }`}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md transition-all duration-200 active:scale-95"
               >
-                {!hasPerKmRate ? t('Rate Not Set', 'रेट सेट नहीं है') : !hasDistance ? t('Select Route', 'रूट चुनें') : t('Book Now', 'बुक करें')}
+                {t('Book Now', 'बुक करें')}
               </button>
             )}
           </div>

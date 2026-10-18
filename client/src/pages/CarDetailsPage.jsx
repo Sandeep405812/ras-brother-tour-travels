@@ -80,27 +80,11 @@ export default function CarDetailsPage({
     );
   }
 
-  const rawPerKm = Number(car.pricing?.perKm);
-  const perKmRate = Number.isFinite(rawPerKm) && rawPerKm > 0 ? rawPerKm : null;
-
-  const rawPerDay = Number(car.pricing?.perDay);
-  const rawBasePrice = Number(car.pricing?.basePrice);
-  const pricePerDay =
-    Number.isFinite(rawPerDay) && rawPerDay > 0
-      ? rawPerDay
-      : Number.isFinite(rawBasePrice) && rawBasePrice > 0
-        ? rawBasePrice
-        : null;
-
+  const pricePerDay = car.pricing?.perDay || car.pricing?.basePrice || 5000;
   const advanceValue =
-    car.advancePayment?.type === 'percentage' && pricePerDay
-      ? `${car.advancePayment.value}% Advance (₹${Math.round(
-          (pricePerDay * car.advancePayment.value) / 100
-        ).toLocaleString('en-IN')})`
-      : car.advancePayment?.type === 'fixed' &&
-        Number(car.advancePayment?.value) > 0
-        ? `₹${Number(car.advancePayment.value).toLocaleString('en-IN')} Fixed Advance`
-        : 'Advance amount shown at booking';
+    car.advancePayment?.type === 'percentage'
+      ? `${car.advancePayment.value}% Advance (₹${Math.round((pricePerDay * car.advancePayment.value) / 100).toLocaleString('en-IN')})`
+      : `₹${car.advancePayment?.value?.toLocaleString('en-IN') || '1,000'} Fixed Advance`;
 
   const allImages = [
     car.images?.main,
@@ -183,46 +167,32 @@ export default function CarDetailsPage({
                 </p>
               </div>
 
-              {/* Dynamic Pricing Banner */}
-              <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-3">
-                <div>
-                  <div className="text-[11px] text-slate-400 uppercase font-bold">
-                    Owner's Rate
-                  </div>
-
-                  {perKmRate ? (
-                    <div className="text-3xl font-black text-amber-400">
-                      ₹{perKmRate.toLocaleString('en-IN')}
-                      <span className="text-xs text-slate-300 font-normal"> / km</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm font-bold text-rose-300">
-                      Per-KM rate not set
-                    </div>
-                  )}
+              {/* Price Banner */}
+              <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-1">
+                <div className="text-[11px] text-slate-400 uppercase font-bold">Standard Day Rate</div>
+                <div className="text-3xl font-black text-amber-400">
+                  ₹{pricePerDay.toLocaleString('en-IN')}
+                  <span className="text-xs text-slate-300 font-normal"> / day</span>
                 </div>
-
-                {pricePerDay && (
-                  <div className="pt-2 border-t border-slate-800">
-                    <div className="text-[11px] text-slate-400 uppercase font-bold">
-                      Standard Day Rate
-                    </div>
-                    <div className="text-xl font-black text-white">
-                      ₹{pricePerDay.toLocaleString('en-IN')}
-                      <span className="text-xs text-slate-400 font-normal"> / day</span>
-                    </div>
-                  </div>
-                )}
-
                 <div className="text-xs text-emerald-400 font-semibold pt-1 border-t border-slate-800">
-                  ⚡ {advanceValue}
+                  ⚡ Pay only {advanceValue} to reserve
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="space-y-2.5">
                 <button
-                  onClick={() => onBook(car)}
+                  onClick={() => {
+                    const defaultRoute = {
+                      sourceAddress: car.location?.address || 'Sector 18, Noida',
+                      destinationAddress: 'Connaught Place, New Delhi',
+                      sourceCoords: car.location?.coordinates || [77.3244, 28.5708],
+                      destCoords: [77.2195, 28.6315],
+                      calculatedDistance: 25,
+                      startDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+                    };
+                    onBook(car, null, null, defaultRoute);
+                  }}
                   className="w-full py-3.5 rounded-2xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 flex items-center justify-center gap-2 transition"
                 >
                   <CreditCard className="w-4 h-4" />

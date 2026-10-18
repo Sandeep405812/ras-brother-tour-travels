@@ -18,9 +18,6 @@ const ownerRoutes = require('./routes/ownerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 
-// Google Routes API
-const routeRoutes = require('./routes/routeRoutes');
-
 const app = express();
 
 // Trust Proxy for Production (Cloudflare, Nginx, Render, AWS ALB)
@@ -35,9 +32,7 @@ app.use(helmet({
 // Request Logger
 app.use((req, res, next) => {
   if (req.url.startsWith('/api')) {
-    console.log(
-      `[REQ ${new Date().toLocaleTimeString()}]: ${req.method} ${req.url}`
-    );
+    console.log(`[REQ ${new Date().toLocaleTimeString()}]: ${req.method} ${req.url}`);
   }
   next();
 });
@@ -51,63 +46,39 @@ app.use(cors({
 
 // Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 15 * 60 * 1000, // 15 mins
   max: 300,
-  message: {
-    success: false,
-    message:
-      'Too many requests from this IP, please try again after 15 minutes.',
-  },
+  message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes.' },
 });
-
 app.use('/api', limiter);
 
 // Body Parsers
 app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({
-  extended: true,
-  limit: '20mb',
-}));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Static Folders
-app.use(
-  '/uploads',
-  express.static(path.join(__dirname, '../uploads'))
-);
-
-app.use(
-  '/brand',
-  express.static(path.join(__dirname, '../public/brand'))
-);
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/brand', express.static(path.join(__dirname, '../public/brand')));
 
 const connectDB = require('./config/db');
 
-// Ensure database is connected before API requests
+// Ensure database is connected before API requests (handles serverless cold starts)
 app.use(async (req, res, next) => {
   if (req.path.startsWith('/api')) {
     try {
       await connectDB();
     } catch (err) {
-      console.error(
-        'Database connection failed on request:',
-        err.message
-      );
-
+      console.error('Database connection failed on request:', err.message);
       return res.status(500).json({
         success: false,
-        message:
-          'Database connection failed. Please try again.',
+        message: 'Database connection failed. Please try again.',
       });
     }
   }
-
   next();
 });
 
-// ============================================================
-// API ROUTES
-// ============================================================
-
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cars', carRoutes);
 app.use('/api/bookings', bookingRoutes);
@@ -120,9 +91,6 @@ app.use('/api/owners', ownerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 
-// Google Routes API
-app.use('/api/routes', routeRoutes);
-
 // Health Check / Company Info Root
 app.get('/api/health', (req, res) => {
   res.json({
@@ -133,30 +101,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Production Client Static Serving & SPA Fallback
-if (
-  !process.env.VERCEL &&
-  !process.env.AWS_LAMBDA_FUNCTION_NAME
-) {
-  const clientDistPath = path.join(
-    __dirname,
-    '../../client/dist'
-  );
-
+// Production Client Static Serving & SPA Fallback (Only in standalone node server)
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const clientDistPath = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDistPath));
-
   app.get('*', (req, res, next) => {
-    if (
-      req.path.startsWith('/api') ||
-      req.path.startsWith('/uploads') ||
-      req.path.startsWith('/brand')
-    ) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/brand')) {
       return next();
     }
-
-    res.sendFile(
-      path.resolve(clientDistPath, 'index.html')
-    );
+    res.sendFile(path.resolve(clientDistPath, 'index.html'));
   });
 }
 
