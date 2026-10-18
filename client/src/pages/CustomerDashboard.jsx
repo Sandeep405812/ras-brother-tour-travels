@@ -31,16 +31,94 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import LanguageToggle from '../components/common/LanguageToggle';
 
-export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, onLogout }) {
+export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, onLogout, initialTab }) {
   const { user, token } = useAuth();
   const { showToast } = useNotification();
   const { lang, t } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'offers' | 'payments' | 'profile'
+  const [activeTab, setActiveTab] = useState(initialTab || 'bookings'); // 'bookings' | 'offers' | 'payments' | 'profile'
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
   const [bookings, setBookings] = useState([]);
   const [offers, setOffers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Profile Form State
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    phone: user?.phone || '',
+    city: user?.city || 'New Delhi',
+    address: user?.address || '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setProfileForm((prev) => ({
+        ...prev,
+        name: user.name || '',
+        phone: user.phone || '',
+        city: user.city || 'New Delhi',
+        address: user.address || '',
+      }));
+    }
+  }, [user]);
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (profileForm.newPassword) {
+      if (profileForm.newPassword.length < 6) {
+        showToast('Password must be at least 6 characters', 'error');
+        return;
+      }
+      if (profileForm.newPassword !== profileForm.confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+      }
+    }
+
+    setProfileSaving(true);
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: profileForm.name,
+          phone: profileForm.phone,
+          city: profileForm.city,
+          address: profileForm.address,
+          password: profileForm.newPassword ? profileForm.newPassword : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('Profile and details updated successfully!', 'success');
+        localStorage.setItem('ras_user', JSON.stringify(data.user));
+        setProfileForm((prev) => ({
+          ...prev,
+          newPassword: '',
+          confirmPassword: '',
+        }));
+      } else {
+        showToast(data.message || 'Profile update failed', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   // VIP Event Pass Modal state
   const [passModalOpen, setPassModalOpen] = useState(false);
@@ -249,6 +327,16 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
               }`}
             >
               Receipts
+            </button>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition shrink-0 ${
+                activeTab === 'profile'
+                  ? 'bg-amber-500 text-slate-950 font-black'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              👤 {t('My Profile & Details', 'मेरी प्रोफाइल')}
             </button>
           </div>
         </div>
@@ -629,6 +717,150 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab 4: Profile & Personal Details */}
+        {activeTab === 'profile' && (
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-xl space-y-6 max-w-3xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 font-heading">
+                  {t('My Profile & Booking Details', 'मेरी प्रोफाइल व विवरण')}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {t('Update your name, phone, operating city, and address for seamless bookings', 'अपनी जानकारी व डिफ़ॉल्ट पिकअप पता अपडेट करें')}
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-amber-500/10 text-amber-700 border border-amber-500/30 rounded-xl text-xs font-bold">
+                VIP Customer
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-5 text-xs font-semibold">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 mb-1.5">{t('Full Name *', 'पूरा नाम *')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                    className="w-full p-3 rounded-2xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1.5">{t('Registered Email', 'ईमेल पता')}</label>
+                  <input
+                    type="email"
+                    disabled
+                    value={user?.email || ''}
+                    className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                  />
+                  <span className="text-[10px] text-emerald-600 mt-1 block">✓ Verified Email Account</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 mb-1.5">{t('Phone Number *', 'मोबाइल नंबर *')}</label>
+                  <input
+                    type="tel"
+                    required
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    className="w-full p-3 rounded-2xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1.5">{t('City / Home Base *', 'शहर / बेस *')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileForm.city}
+                    onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
+                    className="w-full p-3 rounded-2xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 mb-1.5">{t('Default Home / Pickup Address', 'डिफ़ॉल्ट पिकअप पता')}</label>
+                <textarea
+                  rows="2"
+                  value={profileForm.address}
+                  onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                  placeholder="e.g. House No. 24, Civil Lines, Gorakhpur / Sector 18, Noida"
+                  className="w-full p-3 rounded-2xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+              </div>
+
+              {/* Password Change Box */}
+              <div className="pt-4 border-t border-slate-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black text-slate-900">{t('Security & Password', 'सुरक्षा व पासवर्ड')}</h3>
+                  <span className="text-[11px] text-slate-400">{t('Leave blank if you do not want to change password', 'पासवर्ड न बदलना हो तो खाली छोड़ें')}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-700 mb-1.5">{t('New Password', 'नया पासवर्ड')}</label>
+                    <input
+                      type={showProfilePassword ? 'text' : 'password'}
+                      minLength={6}
+                      placeholder="Min 6 characters"
+                      value={profileForm.newPassword}
+                      onChange={(e) => setProfileForm({ ...profileForm, newPassword: e.target.value })}
+                      className="w-full p-3 rounded-2xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1.5">{t('Confirm Password', 'पासवर्ड दोहराएँ')}</label>
+                    <input
+                      type={showProfilePassword ? 'text' : 'password'}
+                      minLength={6}
+                      placeholder="Repeat password"
+                      value={profileForm.confirmPassword}
+                      onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })}
+                      className="w-full p-3 rounded-2xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="showPass"
+                    checked={showProfilePassword}
+                    onChange={(e) => setShowProfilePassword(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-500"
+                  />
+                  <label htmlFor="showPass" className="text-xs text-slate-600 cursor-pointer">
+                    {t('Show Password', 'पासवर्ड दिखाएं')}
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={profileSaving}
+                  className="px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-2xl shadow-lg shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {profileSaving ? (
+                    <span>{t('Saving Changes...', 'सेव हो रहा है...')}</span>
+                  ) : (
+                    <>
+                      <span>{t('Save Profile Changes', 'बदलाव सेव करें')}</span>
+                      <Check className="w-4 h-4 stroke-[3]" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         )}
 

@@ -172,29 +172,59 @@ exports.getMe = async (req, res, next) => {
 // @route PUT /api/auth/profile
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, phone, address, city, avatar, coordinates } = req.body;
+    const { name, phone, address, city, avatar, coordinates, password, businessName } = req.body;
 
-    const updates = {};
-    if (name) updates.name = name;
-    if (phone) updates.phone = phone;
-    if (address) updates.address = address;
-    if (city) updates.city = city;
-    if (avatar) updates.avatar = avatar;
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (address !== undefined) user.address = address;
+    if (city !== undefined) user.city = city;
+    if (avatar) user.avatar = avatar;
     if (coordinates) {
-      updates.location = {
+      user.location = {
         type: 'Point',
         coordinates,
       };
     }
+    if (password && password.trim().length >= 6) {
+      user.password = password.trim();
+    }
 
-    const user = await User.findByIdAndUpdate(req.user.id, updates, {
-      new: true,
-      runValidators: true,
-    });
+    await user.save();
+
+    let ownerProfile = null;
+    if (user.role === 'owner') {
+      if (businessName) {
+        ownerProfile = await OwnerProfile.findOneAndUpdate(
+          { user: user._id },
+          { businessName },
+          { new: true, upsert: true }
+        );
+      } else {
+        ownerProfile = await OwnerProfile.findOne({ user: user._id });
+      }
+    }
 
     res.json({
       success: true,
-      user,
+      message: 'Profile updated successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+        address: user.address,
+        city: user.city,
+        location: user.location,
+        ownerProfileId: ownerProfile ? ownerProfile._id : null,
+        ownerProfile,
+      },
     });
   } catch (error) {
     next(error);

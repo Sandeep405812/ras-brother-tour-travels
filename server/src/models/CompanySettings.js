@@ -61,6 +61,10 @@ const companySettingsSchema = new mongoose.Schema({
     type: String,
     default: '07AAAAA0000A1Z5',
   },
+  upiId: {
+    type: String,
+    default: '9918272164@okaxis',
+  },
   updatedAt: {
     type: Date,
     default: Date.now,

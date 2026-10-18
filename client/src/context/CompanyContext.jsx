@@ -13,6 +13,7 @@ export const CompanyProvider = ({ children }) => {
     website: 'https://rasbrothertravels.com',
     supportInformation: '24/7 dedicated event concierge and luxury fleet dispatch support',
     gstNumber: '07AAAAA0000A1Z5',
+    upiId: '9918272164@okaxis',
     logo: '/brand/ras-logo-primary.svg',
     logoDark: '/brand/ras-logo-dark.svg',
     logoLight: '/brand/ras-logo-light.svg',

@@ -250,67 +250,76 @@ export default function RouteMapPicker({
 
   return (
     <div
-      className={`relative rounded-3xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-900 ${className}`}
-      style={{ height }}
+      className={`rounded-3xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-900 flex flex-col ${className}`}
     >
-      {/* Top Floating Control Bar */}
-      <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      {/* Top Header Control Toolbar */}
+      <div className="bg-slate-950 px-3.5 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 z-20">
         {/* Pin Mode Toggles (Pickup vs Drop) */}
-        <div className="inline-flex rounded-2xl bg-slate-900/90 backdrop-blur-md p-1 border border-slate-700 shadow-xl pointer-events-auto">
+        <div className="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800 shadow-sm">
           <button
             type="button"
             onClick={() => setActivePinMode('pickup')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 ${
               activePinMode === 'pickup'
                 ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
-            <span>🟢</span> Set Pickup (Click Map)
+            <span>🟢</span> Pickup Pin
           </button>
           <button
             type="button"
             onClick={() => setActivePinMode('drop')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 ${
               activePinMode === 'drop'
                 ? 'bg-rose-500 text-white shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
-            <span>🔴</span> Set Drop-off
+            <span>🔴</span> Drop Pin
           </button>
         </div>
 
-        {/* Action Buttons: GPS + Fit View */}
-        <div className="flex items-center gap-1.5 pointer-events-auto">
+        {/* Info & Action Buttons */}
+        <div className="flex items-center gap-2">
+          {roadInfo && (
+            <div className="bg-slate-900 border border-blue-500/40 rounded-xl px-3 py-1 flex items-center gap-2 text-xs">
+              <span className="font-black text-blue-400">🛣️ {roadInfo.distanceKm} km</span>
+              {roadInfo.durationMin > 0 && (
+                <span className="text-slate-400 text-[11px]">⏱️ ~{roadInfo.durationMin}m</span>
+              )}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleDetectGps}
             title="Use current GPS position for pickup"
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md text-amber-300 border border-slate-700 shadow-xl transition flex items-center gap-1"
+            className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 transition flex items-center gap-1"
           >
             <Navigation className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Use GPS</span>
+            <span className="hidden sm:inline">GPS</span>
           </button>
 
           <button
             type="button"
             onClick={() => setFocusTrigger((prev) => prev + 1)}
             title="Center route in view"
-            className="p-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md border border-slate-700 shadow-xl transition"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 transition"
           >
             <Crosshair className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Leaflet Map Container */}
-      <MapContainer
-        center={pickupLatLng}
-        zoom={12}
-        scrollWheelZoom={false}
-        className="w-full h-full z-10"
-      >
+      {/* Leaflet Map Canvas Container */}
+      <div className="relative w-full" style={{ height: height || '420px' }}>
+        <MapContainer
+          center={pickupLatLng}
+          zoom={12}
+          scrollWheelZoom={false}
+          className="w-full h-full z-10"
+        >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -440,6 +449,7 @@ export default function RouteMapPicker({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

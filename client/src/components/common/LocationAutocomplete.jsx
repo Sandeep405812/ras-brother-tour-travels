@@ -880,7 +880,7 @@ export default function LocationAutocomplete({
       ===================================================== */}
 
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-2 bg-slate-900/98 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-96 overflow-y-auto divide-y divide-slate-800/80">
+        <div className="absolute z-[9999] left-0 right-0 mt-2 bg-slate-950 border-2 border-amber-500/40 rounded-2xl shadow-2xl overflow-hidden max-h-96 overflow-y-auto divide-y divide-slate-800">
 
           {/* HEADER */}
 

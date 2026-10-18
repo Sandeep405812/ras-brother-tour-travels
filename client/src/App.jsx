@@ -193,18 +193,10 @@ function MainLayout() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 selection:bg-amber-500 selection:text-white font-sans">
       {/* Universal Left-Side Navigation (Desktop Sidebar + Mobile Left Drawer & Bottom Dock) */}
-      {!['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage) && (
-        <Navbar onNavigate={navigateTo} currentPage={currentPage} />
-      )}
+      <Navbar onNavigate={navigateTo} currentPage={currentPage} pageParams={pageParams} />
 
       {/* Main Content Area */}
-      <div
-        className={`flex-1 min-w-0 flex flex-col ${
-          !['customer-dashboard', 'owner-dashboard', 'admin-dashboard'].includes(currentPage)
-            ? 'lg:pl-64 xl:pl-72 pb-16 lg:pb-0'
-            : ''
-        }`}
-      >
+      <div className="flex-1 min-w-0 flex flex-col lg:pl-64 xl:pl-72 pb-16 lg:pb-0">
         {/* Main Content Router */}
         <main className="flex-1">
         {currentPage === 'home' && (
@@ -248,11 +240,11 @@ function MainLayout() {
         )}
 
         {currentPage === 'about' && (
-          <AboutContactPage />
+          <AboutContactPage mode="about" onNavigate={navigateTo} />
         )}
 
         {currentPage === 'contact' && (
-          <AboutContactPage />
+          <AboutContactPage mode="contact" onNavigate={navigateTo} />
         )}
 
         {currentPage === 'login' && (
@@ -265,6 +257,8 @@ function MainLayout() {
 
         {currentPage === 'customer-dashboard' && (
           <CustomerDashboard
+            key={`customer-${pageParams?.tab || 'default'}`}
+            initialTab={pageParams?.tab}
             onNavigate={navigateTo}
             onLogout={handleLogout}
             onOpenChat={handleOpenChat}
@@ -274,6 +268,8 @@ function MainLayout() {
 
         {currentPage === 'owner-dashboard' && (
           <OwnerDashboard
+            key={`owner-${pageParams?.tab || 'default'}`}
+            initialTab={pageParams?.tab}
             onNavigate={navigateTo}
             onLogout={handleLogout}
             onOpenChat={handleOpenChat}
@@ -283,6 +279,8 @@ function MainLayout() {
 
         {currentPage === 'admin-dashboard' && (
           <AdminDashboard
+            key={`admin-${pageParams?.tab || 'default'}`}
+            initialTab={pageParams?.tab}
             onNavigate={navigateTo}
             onLogout={handleLogout}
           />

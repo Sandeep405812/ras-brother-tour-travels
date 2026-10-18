@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { useCompany } from '../../context/CompanyContext';
 
 import {
   getRoadDistance,
+  resolveCoordinates,
+  calculateHaversineDistance,
 } from '../../utils/distanceCalculator';
 import { geocodeAddress } from '../../utils/geoService';
 
@@ -39,6 +42,7 @@ export default function BookingModal({
 }) {
   const { user, token, isAuthenticated, role } = useAuth();
   const { showToast } = useNotification();
+  const { company } = useCompany();
 
   const [startDate, setStartDate] = useState(
     initialDetails?.startDate ||
@@ -164,7 +168,7 @@ export default function BookingModal({
   // UPI
   // =========================================================
 
-  const upiId = 'rasbrother@okaxis';
+  const upiId = company?.upiId || '9918272164@okaxis';
 
   const upiPayUrl =
     `upi://pay?pa=${upiId}` +
@@ -251,6 +255,13 @@ export default function BookingModal({
         console.warn('Geocode pickup error:', err);
       }
     }
+    if (!activeSourceCoords && sourceAddress?.trim()) {
+      activeSourceCoords = resolveCoordinates(sourceAddress.trim());
+      if (activeSourceCoords) setSourceCoords(activeSourceCoords);
+    }
+    if (!activeSourceCoords) {
+      activeSourceCoords = [77.2090, 28.6139]; // Default Delhi/Noida hub
+    }
 
     // Auto-resolve drop coordinates if missing but address entered
     if (!activeDestCoords && destinationAddress?.trim()) {
@@ -264,14 +275,12 @@ export default function BookingModal({
         console.warn('Geocode drop error:', err);
       }
     }
-
-    if (!activeSourceCoords || !activeDestCoords) {
-      setLoading(false);
-      showToast(
-        'Please enter and select valid Pickup and Drop locations.',
-        'error'
-      );
-      return;
+    if (!activeDestCoords && destinationAddress?.trim()) {
+      activeDestCoords = resolveCoordinates(destinationAddress.trim());
+      if (activeDestCoords) setDestCoords(activeDestCoords);
+    }
+    if (!activeDestCoords) {
+      activeDestCoords = [77.3244, 28.5708]; // Default Noida drop
     }
 
     let activeDistance = calculatedDistance;
@@ -286,17 +295,13 @@ export default function BookingModal({
         console.warn('Road distance calculation error:', distErr);
       }
     }
-
     if (!activeDistance || activeDistance <= 0) {
-      setLoading(false);
-      showToast(
-        'Unable to calculate road distance. Please re-check your pickup and drop locations.',
-        'error'
-      );
-      return;
+      const havKm = calculateHaversineDistance(activeSourceCoords, activeDestCoords);
+      activeDistance = havKm > 0 ? havKm : 25;
+      setCalculatedDistance(activeDistance);
     }
 
-    const calculatedTripTotal = Math.round(activeDistance * perKmRate);
+    const calculatedTripTotal = Math.max(100, Math.round(activeDistance * perKmRate));
 
     try {
       const res = await fetch(

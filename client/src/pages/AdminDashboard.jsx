@@ -38,12 +38,17 @@ import {
   UserCheck,
 } from 'lucide-react';
 
-export default function AdminDashboard({ onNavigate, onLogout }) {
-  const { token } = useAuth();
+export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
+  const { user, token } = useAuth();
   const { showToast } = useNotification();
   const { company, setCompany, refreshCompany } = useCompany();
 
-  const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'customers' | 'owners' | 'backup' | 'overview' | 'kyc' | 'coupons' | 'settings'
+  const [activeTab, setActiveTab] = useState(initialTab || 'bookings'); // 'bookings' | 'customers' | 'owners' | 'backup' | 'overview' | 'kyc' | 'coupons' | 'settings'
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
   const [stats, setStats] = useState(null);
   const [usersList, setUsersList] = useState([]);
   const [kycList, setKycList] = useState([]);
@@ -73,15 +78,99 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
 
   // Company settings form state
   const [settingsForm, setSettingsForm] = useState({
-    companyName: 'RAS Brother Tour & Travels',
-    tagline: 'Premium Local Car Rental & Event Transportation Marketplace',
-    email: 'contact@rasbrothertravels.com',
-    phone: '+91 98765 43210',
-    altPhone: '+91 98111 22334',
-    address: 'Shop 14, Main Market, Sector 18, Noida, Uttar Pradesh 201301',
-    website: 'https://rasbrothertravels.com',
-    gstNumber: '07AAAAA0000A1Z5',
+    companyName: company?.companyName || 'RAS Brother Tour & Travels',
+    tagline: company?.tagline || 'Premium Local Car Rental & Event Transportation Marketplace',
+    email: company?.email || 'contact@rasbrothertravels.com',
+    phone: company?.phone || '+91 9918272164',
+    altPhone: company?.altPhone || '+91 9838183127',
+    address: company?.address || 'Shop 14, Main Market, Sector 18, Noida, Uttar Pradesh 201301',
+    website: company?.website || 'https://rasbrothertravels.com',
+    gstNumber: company?.gstNumber || '07AAAAA0000A1Z5',
+    upiId: company?.upiId || '9918272164@okaxis',
   });
+
+  // Admin Personal Profile & Password Change Form
+  const [adminSecurityForm, setAdminSecurityForm] = useState({
+    name: user?.name || 'Administrator',
+    phone: user?.phone || '+91 9918272164',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showAdminPass, setShowAdminPass] = useState(false);
+  const [savingAdminSecurity, setSavingAdminSecurity] = useState(false);
+
+  useEffect(() => {
+    if (company) {
+      setSettingsForm({
+        companyName: company.companyName || 'RAS Brother Tour & Travels',
+        tagline: company.tagline || 'Premium Local Car Rental & Event Transportation Marketplace',
+        email: company.email || 'contact@rasbrothertravels.com',
+        phone: company.phone || '+91 9918272164',
+        altPhone: company.altPhone || '+91 9838183127',
+        address: company.address || 'Shop 14, Main Market, Sector 18, Noida, Uttar Pradesh 201301',
+        website: company.website || 'https://rasbrothertravels.com',
+        gstNumber: company.gstNumber || '07AAAAA0000A1Z5',
+        upiId: company.upiId || '9918272164@okaxis',
+      });
+    }
+  }, [company]);
+
+  useEffect(() => {
+    if (user) {
+      setAdminSecurityForm((prev) => ({
+        ...prev,
+        name: user.name || 'Administrator',
+        phone: user.phone || '+91 9918272164',
+      }));
+    }
+  }, [user]);
+
+  const handleSaveAdminSecurity = async (e) => {
+    e.preventDefault();
+    if (adminSecurityForm.newPassword) {
+      if (adminSecurityForm.newPassword.length < 6) {
+        showToast('Password must be at least 6 characters', 'error');
+        return;
+      }
+      if (adminSecurityForm.newPassword !== adminSecurityForm.confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+      }
+    }
+
+    setSavingAdminSecurity(true);
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: adminSecurityForm.name,
+          phone: adminSecurityForm.phone,
+          password: adminSecurityForm.newPassword ? adminSecurityForm.newPassword : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('Admin personal security details updated successfully!', 'success');
+        localStorage.setItem('ras_user', JSON.stringify(data.user));
+        setAdminSecurityForm((prev) => ({
+          ...prev,
+          newPassword: '',
+          confirmPassword: '',
+        }));
+      } else {
+        showToast(data.message || 'Failed to update admin security', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSavingAdminSecurity(false);
+    }
+  };
 
   // New coupon state
   const [couponCode, setCouponCode] = useState('');
@@ -409,7 +498,8 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
               { id: 'overview', label: 'Stats' },
               { id: 'kyc', label: `KYC (${kycList.length})` },
               { id: 'coupons', label: `Coupons (${couponsList.length})` },
-              { id: 'settings', label: 'Settings' },
+              { id: 'settings', label: 'Brand & UPI Settings' },
+              { id: 'admin_security', label: 'Admin Security 🔐' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1260,8 +1350,8 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
           </div>
         )}
 
-        {/* Tab 5: Brand & Company Settings */}
-        {activeTab === 'settings' && (
+        {/* Tab 5: Brand & Company Settings and Admin Security */}
+        {(activeTab === 'settings' || activeTab === 'admin_security') && (
           <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-md space-y-6">
             <div>
               <h2 className="text-xl font-black text-slate-900 font-heading">
@@ -1296,42 +1386,50 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 mb-1">Primary Phone</label>
+                  <label className="block text-slate-700 mb-1">Primary Helpline Phone (Live on UI)</label>
                   <input
                     type="text"
                     value={settingsForm.phone}
                     onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
+                    className="w-full p-3 rounded-xl border border-slate-300 font-bold"
                   />
                 </div>
+                <div>
+                  <label className="block text-slate-700 mb-1">Alternative Phone</label>
+                  <input
+                    type="text"
+                    value={settingsForm.altPhone}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, altPhone: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-slate-300 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* UPI ID for Payments */}
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                <label className="block text-emerald-900 font-black text-xs uppercase tracking-wider">
+                  💳 Platform Booking UPI ID (Live on Customer Payment QR &amp; Booking Modal)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 9918272164@okaxis or rasbrother@okaxis"
+                  value={settingsForm.upiId}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, upiId: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-emerald-300 bg-white font-mono font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                />
+                <p className="text-[11px] text-emerald-700">
+                  Changing this UPI ID will instantly update the QR Code and UPI Payment link for all users booking cars on the site.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 mb-1">Support Email</label>
                   <input
                     type="email"
                     value={settingsForm.email}
                     onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 mb-1">Official Address</label>
-                <textarea
-                  rows="2"
-                  value={settingsForm.address}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, address: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 mb-1">Website URL</label>
-                  <input
-                    type="text"
-                    value={settingsForm.website}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, website: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-300"
                   />
                 </div>
@@ -1346,13 +1444,122 @@ export default function AdminDashboard({ onNavigate, onLogout }) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-slate-700 mb-1">Official Office Address (Live on Contact &amp; Footer)</label>
+                <textarea
+                  rows="2"
+                  value={settingsForm.address}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, address: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 mb-1">Website URL</label>
+                <input
+                  type="text"
+                  value={settingsForm.website}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, website: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+
               <button
                 type="submit"
-                className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-2xl flex items-center gap-2 shadow-lg"
+                className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-2xl flex items-center gap-2 shadow-lg cursor-pointer"
               >
-                <Save className="w-4 h-4" /> Save Brand Settings
+                <Save className="w-4 h-4" /> Save Brand &amp; UPI Settings (Update Live on UI)
               </button>
             </form>
+
+            {/* Admin Personal Account & Security Section */}
+            <div className="mt-10 pt-8 border-t border-slate-200 space-y-4 max-w-2xl">
+              <div>
+                <h3 className="text-base font-black text-slate-900 font-heading">
+                  🔐 Administrator Personal Profile &amp; Password
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Update your admin login password, phone number, and name.
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveAdminSecurity} className="space-y-4 text-xs font-semibold">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 mb-1">Admin Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={adminSecurityForm.name}
+                      onChange={(e) => setAdminSecurityForm({ ...adminSecurityForm, name: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-slate-300 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 mb-1">Admin Personal Phone</label>
+                    <input
+                      type="tel"
+                      required
+                      value={adminSecurityForm.phone}
+                      onChange={(e) => setAdminSecurityForm({ ...adminSecurityForm, phone: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-slate-300 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 mb-1">New Admin Password</label>
+                    <input
+                      type={showAdminPass ? 'text' : 'password'}
+                      minLength={6}
+                      placeholder="Min 6 characters"
+                      value={adminSecurityForm.newPassword}
+                      onChange={(e) => setAdminSecurityForm({ ...adminSecurityForm, newPassword: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 mb-1">Confirm New Password</label>
+                    <input
+                      type={showAdminPass ? 'text' : 'password'}
+                      minLength={6}
+                      placeholder="Repeat new password"
+                      value={adminSecurityForm.confirmPassword}
+                      onChange={(e) => setAdminSecurityForm({ ...adminSecurityForm, confirmPassword: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="showAdminPassCheck"
+                    checked={showAdminPass}
+                    onChange={(e) => setShowAdminPass(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-500"
+                  />
+                  <label htmlFor="showAdminPassCheck" className="text-xs text-slate-600 cursor-pointer">
+                    Show Password
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingAdminSecurity}
+                  className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer"
+                >
+                  {savingAdminSecurity ? (
+                    <span>Saving...</span>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" /> Save Admin Password &amp; Profile
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         )}
 

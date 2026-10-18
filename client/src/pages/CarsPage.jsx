@@ -98,8 +98,22 @@ export default function CarsPage({
       const data = await res.json();
       if (data.success) {
         let carList = data.cars || [];
-        // Strictly ensure no car beyond 100 km is shown
-        carList = carList.filter((c) => c.distanceKm === null || c.distanceKm === undefined || c.distanceKm <= 100);
+        if (carList.length === 0) {
+          const allRes = await fetch('/api/cars');
+          const allData = await allRes.json();
+          if (allData.success && allData.cars?.length) {
+            carList = allData.cars.map((c) => {
+              const carCoords = c.location?.coordinates;
+              const dist =
+                sourceCoords && Array.isArray(sourceCoords) && carCoords?.length === 2
+                  ? calculateHaversineDistance(sourceCoords, carCoords)
+                  : null;
+              return { ...c, distanceKm: dist };
+            }).sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+          }
+        } else {
+          carList.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+        }
         setCars(carList);
       }
     } catch (err) {
