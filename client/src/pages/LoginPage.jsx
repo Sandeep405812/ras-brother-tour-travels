@@ -37,11 +37,6 @@ export default function LoginPage({ onNavigate }) {
     }
   };
 
-  // Quick Demo Logins
-  const handleDemoLogin = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-  };
 
   // Handle Request Forgot Password OTP
   const handleRequestOtp = async (e) => {
@@ -196,37 +191,7 @@ export default function LoginPage({ onNavigate }) {
             </button>
           </form>
 
-          {/* Quick Demo Access Bar */}
-          <div className="pt-3 border-t border-slate-800">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 text-center">
-              One-Click Demo Credentials
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('customer1@rasbrother.com', 'customer123')}
-                className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-xl border border-slate-700"
-              >
-                Customer
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('owner1@rasbrother.com', 'owner123')}
-                className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold rounded-xl border border-slate-700"
-              >
-                Car Owner
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('admin@rasbrother.com', 'admin123')}
-                className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-purple-300 text-[10px] font-bold rounded-xl border border-slate-700"
-              >
-                Admin
-              </button>
-            </div>
-          </div>
-
-          <div className="text-center text-xs text-slate-400">
+          <div className="text-center text-xs text-slate-400 pt-2">
             Don't have an account yet?{' '}
             <button
               onClick={() => onNavigate('register')}
