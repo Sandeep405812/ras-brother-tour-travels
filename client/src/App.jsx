@@ -4,6 +4,8 @@ import { CompanyProvider } from './context/CompanyContext';
 import { SocketProvider } from './context/SocketContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { CartProvider, useCart } from './context/CartContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import LanguageToggle from './components/common/LanguageToggle';
 import { ShoppingCart, Smartphone, X } from 'lucide-react';
 
 import Navbar from './components/common/Navbar';
@@ -31,6 +33,7 @@ import MakeOfferModal from './components/cars/MakeOfferModal';
 import BulkBookingModal from './components/cars/BulkBookingModal';
 
 function FloatingInstallAppButton() {
+  const { t } = useLanguage();
   const [deferredPrompt, setDeferredPrompt] = React.useState(null);
   const [visible, setVisible] = React.useState(false);
 
@@ -61,7 +64,10 @@ function FloatingInstallAppButton() {
       if (choice.outcome === 'accepted') setVisible(false);
       setDeferredPrompt(null);
     } else {
-      alert('📲 अपने फोन में RAS Brother ऐप इंस्टॉल करने के लिए:\n\n1. Chrome में: ऊपर 3 डॉट्स (⋮) दबाएं और "Install app" या "Add to Home screen" चुनें।\n2. iPhone (Safari) में: नीचे शेयर बटन (⎋) दबाएं और "Add to Home Screen" चुनें।');
+      alert(t(
+        '📲 To install app on phone:\n\n1. In Chrome: Tap 3 dots (⋮) and select "Install app" / "Add to Home screen"\n2. In Safari: Tap Share button (⎋) and select "Add to Home Screen"',
+        '📲 फोन में ऐप इंस्टॉल करने के लिए:\n\n1. Chrome में: ऊपर 3 डॉट्स (⋮) दबाएं और "Install app" चुनें\n2. Safari में: शेयर बटन (⎋) दबाएं और "Add to Home Screen" चुनें'
+      ));
     }
   };
 
@@ -72,12 +78,12 @@ function FloatingInstallAppButton() {
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:from-amber-400 transition shadow-md"
       >
         <Smartphone className="w-3.5 h-3.5" />
-        <span>📲 ऐप इंस्टॉल करें</span>
+        <span>{t('📲 Install App', '📲 ऐप इंस्टॉल करें')}</span>
       </button>
       <button
         onClick={() => setVisible(false)}
         className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
-        title="हटाएं"
+        title={t('Close', 'बंद करें')}
       >
         <X className="w-3.5 h-3.5" />
       </button>
@@ -87,6 +93,7 @@ function FloatingInstallAppButton() {
 
 function FloatingFleetCartButton() {
   const { cartCount, setIsCartOpen } = useCart();
+  const { t } = useLanguage();
   if (cartCount === 0) return null;
   return (
     <button
@@ -99,14 +106,15 @@ function FloatingFleetCartButton() {
           {cartCount}
         </span>
       </span>
-      <span className="hidden sm:inline">चयनित गाड़ियाँ ({cartCount} Cars Selected)</span>
-      <span className="sm:hidden">Cars ({cartCount})</span>
+      <span className="hidden sm:inline">{t(`Selected Cars (${cartCount})`, `चुनी गई गाड़ियाँ (${cartCount})`)}</span>
+      <span className="sm:hidden">{t(`Cars (${cartCount})`, `गाड़ियाँ (${cartCount})`)}</span>
     </button>
   );
 }
 
 function MainLayout() {
   const { loading: authLoading, isAuthenticated, user, logout } = useAuth();
+  const { t } = useLanguage();
   const [currentPage, setCurrentPage] = useState('home');
   const [pageParams, setPageParams] = useState({});
 
@@ -204,6 +212,8 @@ function MainLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            <LanguageToggle variant="dark" />
+
             <button
               type="button"
               onClick={() => navigateTo('home')}
@@ -213,7 +223,7 @@ function MainLayout() {
                   : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
               }`}
             >
-              <span>🚗 Book Your Car</span>
+              <span>🚗 {t('Book Your Car', 'गाड़ी बुक करें')}</span>
             </button>
 
             <button
@@ -225,14 +235,14 @@ function MainLayout() {
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950 transition shadow-sm"
             >
-              My Dashboard
+              {t('My Dashboard', 'डैशबोर्ड')}
             </button>
             <button
               type="button"
               onClick={handleLogout}
               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-rose-900 hover:text-rose-200 text-slate-300 transition"
             >
-              Logout
+              {t('Logout', 'लॉगआउट')}
             </button>
           </div>
         </header>
@@ -381,9 +391,11 @@ export default function App() {
       <CompanyProvider>
         <SocketProvider>
           <NotificationProvider>
-            <CartProvider>
-              <MainLayout />
-            </CartProvider>
+            <LanguageProvider>
+              <CartProvider>
+                <MainLayout />
+              </CartProvider>
+            </LanguageProvider>
           </NotificationProvider>
         </SocketProvider>
       </CompanyProvider>

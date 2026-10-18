@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import RasLogo from '../components/brand/RasLogo';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageToggle from '../components/common/LanguageToggle';
 import {
   Car,
   Calendar,
@@ -34,6 +36,7 @@ import { uploadSingleFile } from '../utils/imageUpload';
 export default function OwnerDashboard({ onNavigate, onLogout }) {
   const { user, token } = useAuth();
   const { showToast } = useNotification();
+  const { lang, t } = useLanguage();
 
   // Tab state: ONLY 2 TABS for simplicity
   const [activeTab, setActiveTab] = useState('cars'); // 'cars' | 'bookings'
@@ -70,7 +73,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
   // Sound Notification Alert state (for incoming new bookings)
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Browser Web Audio API Chime Synthesizer (Works 100% reliably without external audio files)
+  // Browser Web Audio API Chime Synthesizer
   const playChime = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -78,7 +81,6 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       const ctx = new AudioCtx();
       const now = ctx.currentTime;
 
-      // Bell chime tone 1 (D5)
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = 'sine';
@@ -90,7 +92,6 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       osc1.start(now);
       osc1.stop(now + 0.35);
 
-      // Bell chime tone 2 (A5)
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
       osc2.type = 'sine';
@@ -102,18 +103,18 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       osc2.start(now + 0.14);
       osc2.stop(now + 0.7);
     } catch (e) {
-      console.warn('Audio chime warning:', e);
+      console.warn('Audio chime error:', e);
     }
   };
 
-  // Car Form state - Simple & Intuitive
+  // Car Form state
   const initialCarForm = {
     name: '',
     brand: 'Standard',
     model: '2024',
     perKm: 20,
     locationAddress: '',
-    fuelIncluded: true, // true = तेल गाड़ी का (Fuel Included), false = तेल ग्राहक का (Fuel Extra)
+    fuelIncluded: true,
     seatingCapacity: 5,
     fuelType: 'Diesel',
     mainImage: '',
@@ -141,18 +142,17 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       }
       if (bookingsData.success) {
         const newBookings = bookingsData.bookings || [];
-        // Check if there are newly arrived pending bookings
         if (isBackground && newBookings.length > ownerBookings.length) {
           const hasPending = newBookings.some((b) => b.status === 'pending');
           if (hasPending && soundEnabled) {
             playChime();
-            showToast('🔔 नई बुकिंग आई है! (New Booking Received)', 'success');
+            showToast(t('New booking received!', 'नई बुकिंग आई है!'), 'success');
           }
         }
         setOwnerBookings(newBookings);
       }
     } catch (err) {
-      if (!isBackground) showToast('डेटा लोड करने में समस्या आई (Failed to load data)', 'error');
+      if (!isBackground) showToast(t('Failed to load data', 'डेटा लोड करने में समस्या आई'), 'error');
     } finally {
       if (!isBackground) setLoading(false);
     }
@@ -162,7 +162,6 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
     if (token) {
       fetchDashboardData();
 
-      // Background check every 25s for new bookings
       const interval = setInterval(() => {
         fetchDashboardData(true);
       }, 25000);
@@ -179,9 +178,9 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
     try {
       const uploadedUrl = await uploadSingleFile(file, token);
       setCarForm((prev) => ({ ...prev, mainImage: uploadedUrl }));
-      showToast('फोटो सफलतापूर्वक अपलोड हो गई! (Photo uploaded)', 'success');
+      showToast(t('Photo uploaded successfully', 'फोटो सफलतापूर्वक अपलोड हो गई!'), 'success');
     } catch (err) {
-      showToast(err.message || 'फोटो अपलोड नहीं हो पाई (Upload failed)', 'error');
+      showToast(err.message || t('Upload failed', 'फोटो अपलोड नहीं हो पाई'), 'error');
     } finally {
       setUploadingImage(false);
     }
@@ -219,11 +218,11 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
   const handleSaveCar = async (e) => {
     e.preventDefault();
     if (!carForm.name.trim()) {
-      showToast('कृपया गाड़ी का नाम भरें (Please enter car name)', 'error');
+      showToast(t('Please enter car name', 'कृपया गाड़ी का नाम भरें'), 'error');
       return;
     }
     if (!carForm.locationAddress.trim()) {
-      showToast('गाड़ी कहाँ उपलब्ध है, वह जगह भरें (Please enter location)', 'error');
+      showToast(t('Please enter location', 'गाड़ी कहाँ उपलब्ध है, वह जगह भरें'), 'error');
       return;
     }
 
@@ -273,13 +272,15 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       const data = await res.json();
       if (data.success) {
         showToast(
-          isEditing ? 'गाड़ी की जानकारी अपडेट हो गई! (Car updated)' : 'नई गाड़ी सफलतापूर्वक जुड़ गई! (Car added)',
+          isEditing
+            ? t('Car details updated successfully', 'गाड़ी की जानकारी अपडेट हो गई!')
+            : t('New car added successfully', 'नई गाड़ी सफलतापूर्वक जुड़ गई!'),
           'success'
         );
         setCarModalOpen(false);
         fetchDashboardData();
       } else {
-        showToast(data.message || 'गाड़ी सेव नहीं हो सकी (Save failed)', 'error');
+        showToast(data.message || t('Save failed', 'गाड़ी सेव नहीं हो सकी'), 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -288,9 +289,11 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
 
   // Delete Car
   const handleDeleteCar = async (carId, carName) => {
-    if (!window.confirm(`क्या आप सच में "${carName}" को हटाना चाहते हैं? (Delete this car?)`)) {
-      return;
-    }
+    const confirmMsg = t(
+      `Are you sure you want to delete "${carName}"?`,
+      `क्या आप सच में "${carName}" को हटाना चाहते हैं?`
+    );
+    if (!window.confirm(confirmMsg)) return;
 
     try {
       const res = await fetch(`/api/cars/${carId}`, {
@@ -299,10 +302,10 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        showToast('गाड़ी लिस्ट से हटा दी गई (Car removed)', 'success');
+        showToast(t('Car deleted successfully', 'गाड़ी हटा दी गई'), 'success');
         setMyFleet((prev) => prev.filter((c) => c._id !== carId));
       } else {
-        showToast(data.message || 'गाड़ी नहीं हट सकी', 'error');
+        showToast(data.message || t('Could not delete car', 'गाड़ी नहीं हट सकी'), 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -324,7 +327,6 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       const data = await res.json();
       if (data.success) {
         showToast(data.message, 'success');
-        // Update local state
         setMyFleet((prev) =>
           prev.map((c) => (c._id === carId ? { ...c, unavailableDates: data.unavailableDates } : c))
         );
@@ -333,7 +335,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         }
         setDateToBlock('');
       } else {
-        showToast(data.message || 'तारीख अपडेट नहीं हो सकी', 'error');
+        showToast(data.message || t('Failed to update date', 'तारीख अपडेट नहीं हो सकी'), 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -342,10 +344,12 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
 
   // Accept / Reject Booking
   const handleUpdateBookingStatus = async (bookingId, newStatus) => {
-    const actionText = newStatus === 'confirmed' ? 'स्वीकार (Accept)' : 'रद्द (Cancel)';
-    if (!window.confirm(`क्या आप इस बुकिंग को ${actionText} करना चाहते हैं?`)) {
-      return;
-    }
+    const actionText = newStatus === 'confirmed' ? t('Accept', 'स्वीकार') : t('Reject', 'रद्द');
+    const confirmMsg = t(
+      `Do you want to ${actionText.toLowerCase()} this booking?`,
+      `क्या आप इस बुकिंग को ${actionText} करना चाहते हैं?`
+    );
+    if (!window.confirm(confirmMsg)) return;
 
     try {
       const res = await fetch(`/api/bookings/${bookingId}/status`, {
@@ -356,15 +360,15 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         },
         body: JSON.stringify({
           status: newStatus,
-          cancellationReason: newStatus === 'cancelled' ? 'गाड़ी मालिक द्वारा मना किया गया' : undefined,
+          cancellationReason: newStatus === 'cancelled' ? 'Declined by owner' : undefined,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`बुकिंग ${actionText} हो गई!`, 'success');
+        showToast(t(`Booking ${actionText.toLowerCase()}ed successfully`, `बुकिंग ${actionText} हो गई!`), 'success');
         fetchDashboardData();
       } else {
-        showToast(data.message || 'स्टेटस अपडेट नहीं हो सका', 'error');
+        showToast(data.message || t('Failed to update status', 'स्टेटस अपडेट नहीं हो सका'), 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -375,7 +379,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
   const handleVerifyOtpAndStartRide = async (e) => {
     e.preventDefault();
     if (!otpInput.trim()) {
-      showToast('कृपया ग्राहक से पूछकर 4 अंकों का OTP डालें', 'error');
+      showToast(t('Please enter 4-digit customer OTP', 'कृपया ग्राहक का 4 अंकों का OTP डालें'), 'error');
       return;
     }
 
@@ -390,12 +394,12 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        showToast('सत्यापन सफल! राइड शुरू हो गई है। (Ride Started!)', 'success');
+        showToast(t('OTP verified! Ride started.', 'सत्यापन सफल! राइड शुरू हो गई है।'), 'success');
         setOtpModalOpen(false);
         setOtpInput('');
         fetchDashboardData();
       } else {
-        showToast(data.message || 'गलत OTP! कृपया ग्राहक से सही OTP पूछें।', 'error');
+        showToast(data.message || t('Invalid OTP. Please check with customer.', 'गलत OTP! कृपया ग्राहक से सही OTP पूछें।'), 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -416,11 +420,11 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        showToast('सफ़र सफलतापूर्वक पूरा हो गया! (Ride Completed)', 'success');
+        showToast(t('Ride completed successfully', 'सफ़र पूरा हो गया!'), 'success');
         setCompleteModalOpen(false);
         fetchDashboardData();
       } else {
-        showToast(data.message || 'राइड पूरी नहीं हो सकी', 'error');
+        showToast(data.message || t('Could not complete ride', 'राइड पूरी नहीं हो सकी'), 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -435,7 +439,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
-      {/* Top Header - Simple & Clean */}
+      {/* Top Header */}
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -443,16 +447,19 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
               <Car className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-black text-white font-heading flex items-center gap-2">
-                कार मालिक पोर्टल <span className="text-xs text-amber-400 font-normal hidden sm:inline">(Car Owner Panel)</span>
+              <h1 className="text-lg sm:text-xl font-black text-white font-heading">
+                {t('Car Owner Portal', 'कार मालिक पोर्टल')}
               </h1>
               <p className="text-xs text-slate-400">
-                नमस्ते, <span className="font-bold text-amber-300">{user?.name || 'Car Owner'}</span> {user?.phone ? `• 📞 ${user.phone}` : ''}
+                {t('Welcome,', 'नमस्ते,')} <span className="font-bold text-amber-300">{user?.name || 'Owner'}</span> {user?.phone ? `• 📞 ${user.phone}` : ''}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Language Switcher */}
+            <LanguageToggle variant="dark" />
+
             {/* Sound Notification Alert Toggle */}
             <button
               type="button"
@@ -460,24 +467,24 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                 const next = !soundEnabled;
                 setSoundEnabled(next);
                 if (next) playChime();
-                showToast(next ? '🔔 साउंड अलर्ट चालू है (Sound ON)' : '🔕 साउंड म्यूट है (Sound OFF)', 'info');
+                showToast(next ? t('Sound Alert ON', 'साउंड अलर्ट चालू है') : t('Sound Alert Muted', 'साउंड म्यूट है'), 'info');
               }}
               className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
                 soundEnabled
                   ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
                   : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
               }`}
-              title="नई बुकिंग पर घंटी बजाएं"
+              title={t('Toggle Sound Alert', 'नई बुकिंग पर घंटी बजाएं')}
             >
               {soundEnabled ? (
                 <>
                   <Bell className="w-4 h-4 text-emerald-400 animate-bounce" />
-                  <span className="hidden sm:inline">साउंड चालू</span>
+                  <span className="hidden sm:inline">{t('Sound ON', 'साउंड चालू')}</span>
                 </>
               ) : (
                 <>
                   <BellOff className="w-4 h-4" />
-                  <span className="hidden sm:inline">साउंड बंद</span>
+                  <span className="hidden sm:inline">{t('Sound OFF', 'साउंड बंद')}</span>
                 </>
               )}
             </button>
@@ -487,19 +494,19 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
               className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition transform active:scale-95"
             >
               <Plus className="w-4 h-4" />
-              <span>+ नई गाड़ी जोड़ें</span>
+              <span>{t('+ Add New Car', '+ नई गाड़ी जोड़ें')}</span>
             </button>
             <button
               onClick={onLogout}
               className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition"
-              title="लॉगआउट (Logout)"
+              title={t('Logout', 'लॉगआउट')}
             >
               <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* 2 MAIN TABS - Simple Big Buttons */}
+        {/* 2 MAIN TABS */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 gap-2 pb-3 pt-1">
             <button
@@ -511,7 +518,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
               }`}
             >
               <Car className="w-5 h-5" />
-              <span>मेरी गाड़ियाँ (My Cars)</span>
+              <span>{t('My Cars', 'मेरी गाड़ियाँ')}</span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                   activeTab === 'cars' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
@@ -530,7 +537,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
               }`}
             >
               <Calendar className="w-5 h-5" />
-              <span>मेरी बुकिंग (My Bookings)</span>
+              <span>{t('My Bookings', 'मेरी बुकिंग')}</span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                   activeTab === 'bookings' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
@@ -548,21 +555,19 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="text-slate-400 text-sm font-semibold">गाड़ियाँ और बुकिंग लोड हो रही हैं...</p>
+            <p className="text-slate-400 text-sm font-semibold">{t('Loading vehicles & bookings...', 'गाड़ियाँ और बुकिंग लोड हो रही हैं...')}</p>
           </div>
         ) : activeTab === 'cars' ? (
-          /* ========================================================= */
-          /* TAB 1: मेरी गाड़ियाँ (MY CARS)                            */
-          /* ========================================================= */
+          /* TAB 1: CARS */
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 p-4 rounded-2xl border border-slate-800">
               <div>
                 <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                  <span>🚗 आपकी लिस्ट की गई गाड़ियाँ</span>
-                  <span className="text-xs text-slate-400 font-normal">({myFleet.length} Cars Available)</span>
+                  <span>🚗 {t('Your Listed Cars', 'आपकी लिस्ट की गई गाड़ियाँ')}</span>
+                  <span className="text-xs text-slate-400 font-normal">({myFleet.length})</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  यहाँ से आप अपनी गाड़ी का किराया, तेल की शर्त, या किसी तारीख को बंद/चालू कर सकते हैं।
+                  {t('Manage car rates, fuel options, and unavailable dates.', 'यहाँ से आप अपनी गाड़ी का किराया, तेल की शर्त, या किसी तारीख को बंद/चालू कर सकते हैं।')}
                 </p>
               </div>
               <button
@@ -570,7 +575,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                 className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ नई गाड़ी जोड़ें</span>
+                <span>{t('+ Add New Car', '+ नई गाड़ी जोड़ें')}</span>
               </button>
             </div>
 
@@ -580,16 +585,16 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                   <Car className="w-8 h-8" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-lg font-black text-white">अभी तक कोई गाड़ी नहीं जोड़ी गई है</h3>
+                  <h3 className="text-lg font-black text-white">{t('No cars added yet', 'अभी तक कोई गाड़ी नहीं जोड़ी गई है')}</h3>
                   <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    ग्राहकों से बुकिंग पाने के लिए अपनी गाड़ी का नाम, प्रति किलोमीटर रेट और जगह डालकर लिस्ट करें।
+                    {t('Add your car with name, rate per km, and location to start getting bookings.', 'ग्राहकों से बुकिंग पाने के लिए अपनी गाड़ी का नाम, प्रति किलोमीटर रेट और जगह डालकर लिस्ट करें।')}
                   </p>
                 </div>
                 <button
                   onClick={handleOpenAddCar}
                   className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm rounded-2xl shadow-xl hover:from-amber-400 transition"
                 >
-                  + पहली गाड़ी जोड़ें (Add Your First Car)
+                  {t('+ Add Your First Car', '+ पहली गाड़ी जोड़ें')}
                 </button>
               </div>
             ) : (
@@ -604,7 +609,6 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                       key={car._id}
                       className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-slate-700 transition"
                     >
-                      {/* Car Image + Badges */}
                       <div className="relative h-44 bg-slate-950">
                         <img
                           src={mainImg}
@@ -619,27 +623,25 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                           ₹{rate}/km
                         </div>
 
-                        {/* Fuel Option Badge */}
                         <div className="absolute top-3 right-3">
                           {car.fuelIncluded ? (
                             <span className="bg-emerald-950/90 text-emerald-400 border border-emerald-800/80 px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 shadow">
-                              <Fuel className="w-3 h-3" /> तेल गाड़ी का (Fuel Included)
+                              <Fuel className="w-3 h-3" /> {t('Fuel Included', 'तेल शामिल है')}
                             </span>
                           ) : (
                             <span className="bg-rose-950/90 text-rose-300 border border-rose-800/80 px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 shadow">
-                              <Fuel className="w-3 h-3" /> तेल ग्राहक का (Fuel Extra)
+                              <Fuel className="w-3 h-3" /> {t('Fuel Extra', 'तेल अलग से')}
                             </span>
                           )}
                         </div>
 
                         {blockedCount > 0 && (
                           <div className="absolute bottom-3 left-3 bg-rose-600 text-white px-2.5 py-0.5 rounded-lg text-[10px] font-black shadow">
-                            ⛔ {blockedCount} तारीख बंद है (Unavailable)
+                            ⛔ {t(`${blockedCount} Dates Blocked`, `${blockedCount} तारीखें बंद`)}
                           </div>
                         )}
                       </div>
 
-                      {/* Car Info */}
                       <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col justify-between">
                         <div>
                           <div className="flex items-start justify-between gap-2">
@@ -658,7 +660,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
 
                           <div className="flex items-center gap-3 text-xs text-slate-400 mt-2 font-medium">
                             <span className="flex items-center gap-1">
-                              <Users className="w-3.5 h-3.5 text-slate-400" /> {car.seatingCapacity || 5} सीटें
+                              <Users className="w-3.5 h-3.5 text-slate-400" /> {car.seatingCapacity || 5} {t('Seats', 'सीटें')}
                             </span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
@@ -673,7 +675,6 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                           )}
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="pt-3 border-t border-slate-800 space-y-2">
                           <button
                             onClick={() => {
@@ -683,7 +684,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                             className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 transition"
                           >
                             <Calendar className="w-3.5 h-3.5" />
-                            <span>📅 तारीख बंद / खोलें (Manage Dates)</span>
+                            <span>📅 {t('Manage Dates', 'तारीख बंद/खोलें')}</span>
                           </button>
 
                           <div className="grid grid-cols-2 gap-2">
@@ -692,14 +693,14 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                               className="py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-blue-500/30 transition"
                             >
                               <Edit className="w-3.5 h-3.5" />
-                              <span>बदलें (Edit)</span>
+                              <span>{t('Edit', 'बदलें')}</span>
                             </button>
                             <button
                               onClick={() => handleDeleteCar(car._id, car.name)}
                               className="py-2 px-3 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-rose-500/30 transition"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              <span>हटाएं (Delete)</span>
+                              <span>{t('Delete', 'हटाएं')}</span>
                             </button>
                           </div>
                         </div>
@@ -711,25 +712,21 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
             )}
           </div>
         ) : (
-          /* ========================================================= */
-          /* TAB 2: मेरी बुकिंग (MY BOOKINGS)                          */
-          /* ========================================================= */
+          /* TAB 2: BOOKINGS */
           <div className="space-y-6">
-            {/* Filter Bar */}
             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-base sm:text-lg font-black text-white">गाड़ियों की बुकिंग (Bookings)</h2>
-                <p className="text-xs text-slate-400">ग्राहकों की सभी बुकिंग और फोन नंबर यहाँ देखें।</p>
+                <h2 className="text-base sm:text-lg font-black text-white">{t('Customer Bookings', 'ग्राहकों की बुकिंग')}</h2>
+                <p className="text-xs text-slate-400">{t('View customer details, routes, and call directly.', 'ग्राहकों की सभी बुकिंग और फोन नंबर यहाँ देखें।')}</p>
               </div>
 
-              {/* Status Filter Buttons */}
               <div className="flex flex-wrap gap-1.5 text-xs font-bold">
                 {[
-                  { id: 'all', label: 'सभी (All)' },
-                  { id: 'pending', label: 'नई बुकिंग (New)' },
-                  { id: 'confirmed', label: 'कन्फर्म (Confirmed)' },
-                  { id: 'in_progress', label: 'चालू राइड (On Going)' },
-                  { id: 'completed', label: 'पूरी हुई (Done)' },
+                  { id: 'all', label: t('All', 'सभी') },
+                  { id: 'pending', label: t('New', 'नई बुकिंग') },
+                  { id: 'confirmed', label: t('Confirmed', 'कन्फर्म') },
+                  { id: 'in_progress', label: t('Ongoing', 'चालू राइड') },
+                  { id: 'completed', label: t('Completed', 'पूरी हुई') },
                 ].map((f) => (
                   <button
                     key={f.id}
@@ -749,9 +746,9 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
             {filteredBookings.length === 0 ? (
               <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-3xl p-10 text-center space-y-3">
                 <Calendar className="w-12 h-12 text-slate-500 mx-auto" />
-                <h3 className="text-base sm:text-lg font-black text-white">कोई बुकिंग नहीं मिली</h3>
+                <h3 className="text-base sm:text-lg font-black text-white">{t('No bookings found', 'कोई बुकिंग नहीं मिली')}</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  जैसे ही कोई ग्राहक आपकी गाड़ी बुक करेगा, उसकी पूरी जानकारी और मोबाइल नंबर यहाँ दिखेगा।
+                  {t('New bookings will appear here instantly.', 'जैसे ही कोई ग्राहक आपकी गाड़ी बुक करेगा, उसकी पूरी जानकारी यहाँ दिखेगी।')}
                 </p>
               </div>
             ) : (
@@ -764,19 +761,18 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                   const remainingAmt = b.pricing?.remainingAmount || Math.max(0, totalAmt - advanceAmt);
 
                   const dateFormatted = b.startDate
-                    ? new Date(b.startDate).toLocaleDateString('hi-IN', {
+                    ? new Date(b.startDate).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-US', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
                       })
-                    : 'तारीख तय नहीं';
+                    : t('Date TBD', 'तारीख तय नहीं');
 
                   return (
                     <div
                       key={b._id}
                       className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4 hover:border-slate-700 transition"
                     >
-                      {/* Top Header of Card */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-lg">
@@ -787,42 +783,40 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                           </span>
                         </div>
 
-                        {/* Status Badges */}
                         <div>
                           {b.status === 'pending' && (
                             <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
-                              ⏳ नई बुकिंग (स्वीकार करें)
+                              ⏳ {t('New Booking (Pending)', 'नई बुकिंग (स्वीकार करें)')}
                             </span>
                           )}
                           {b.status === 'confirmed' && (
                             <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
-                              ✅ कन्फर्म है (गाड़ी भेजें)
+                              ✅ {t('Confirmed', 'कन्फर्म है')}
                             </span>
                           )}
                           {b.status === 'in_progress' && (
                             <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 animate-pulse">
-                              🚗 राइड चल रही है
+                              🚗 {t('Ride in Progress', 'राइड चल रही है')}
                             </span>
                           )}
                           {b.status === 'completed' && (
                             <span className="bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
-                              🎉 पूरी हो गई (Completed)
+                              🎉 {t('Completed', 'पूरी हो गई')}
                             </span>
                           )}
                           {b.status === 'cancelled' && (
                             <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5">
-                              ❌ रद्द (Cancelled)
+                              ❌ {t('Cancelled', 'रद्द')}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Main Details Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Car Details */}
                         <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                            गाड़ी (Booked Car)
+                            {t('Booked Car', 'गाड़ी')}
                           </span>
                           <div className="flex items-center gap-3">
                             <img
@@ -834,9 +828,9 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                               <h4 className="font-black text-sm text-white">{b.car?.name || 'Car'}</h4>
                               <p className="text-xs text-amber-400 font-semibold">₹{b.car?.pricing?.perKm || 20}/km</p>
                               {b.car?.fuelIncluded ? (
-                                <span className="text-[10px] text-emerald-400 font-semibold">⛽ तेल गाड़ी का</span>
+                                <span className="text-[10px] text-emerald-400 font-semibold">⛽ {t('Fuel Included', 'तेल शामिल है')}</span>
                               ) : (
-                                <span className="text-[10px] text-rose-300 font-semibold">⚠️ तेल ग्राहक का</span>
+                                <span className="text-[10px] text-rose-300 font-semibold">⚠️ {t('Fuel Extra', 'तेल अलग से')}</span>
                               )}
                             </div>
                           </div>
@@ -845,11 +839,11 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                         {/* Customer Info & Direct Call Button */}
                         <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                            ग्राहक की जानकारी (Customer)
+                            {t('Customer', 'ग्राहक')}
                           </span>
                           <div className="space-y-1">
                             <h4 className="font-black text-sm text-white">{customerName}</h4>
-                            <p className="text-xs text-slate-300 font-mono">{customerPhone || 'फोन नंबर उपलब्ध नहीं'}</p>
+                            <p className="text-xs text-slate-300 font-mono">{customerPhone || t('Phone unavailable', 'फोन नंबर नहीं है')}</p>
                           </div>
                           {customerPhone && (
                             <a
@@ -857,7 +851,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                               className="w-full mt-2 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition active:scale-95"
                             >
                               <Phone className="w-4 h-4 fill-white" />
-                              <span>📞 कॉल करें (Call Customer)</span>
+                              <span>📞 {t('Call Customer', 'कॉल करें')}</span>
                             </a>
                           )}
                         </div>
@@ -865,43 +859,43 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                         {/* Route & Distance */}
                         <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                            सफ़र का रूट (Route & Distance)
+                            {t('Route & Distance', 'सफ़र का रूट')}
                           </span>
                           <div className="text-xs space-y-1.5">
                             <div className="flex items-start gap-1.5">
-                              <span className="text-emerald-400 font-bold">🟢 पिकअप:</span>
+                              <span className="text-emerald-400 font-bold">{t('Pickup:', 'पिकअप:')}</span>
                               <span className="text-slate-200 line-clamp-1">
                                 {b.pickupLocation?.address || 'Pickup Point'}
                               </span>
                             </div>
                             <div className="flex items-start gap-1.5">
-                              <span className="text-rose-400 font-bold">🔴 ड्रॉप:</span>
+                              <span className="text-rose-400 font-bold">{t('Drop:', 'ड्रॉप:')}</span>
                               <span className="text-slate-200 line-clamp-1">
                                 {b.destinationAddress || 'Destination Point'}
                               </span>
                             </div>
                             {b.distanceKm && (
                               <div className="text-[11px] font-black text-amber-400 pt-1">
-                                📏 कुल दूरी: {b.distanceKm} KM
+                                📏 {t(`Total Distance: ${b.distanceKm} KM`, `कुल दूरी: ${b.distanceKm} KM`)}
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Payment & Fares Bar */}
+                      {/* Payment Breakdown */}
                       <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
                         <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                           <div>
-                            <span className="text-slate-400 block text-[10px]">कुल किराया (Total Fare):</span>
+                            <span className="text-slate-400 block text-[10px]">{t('Total Fare:', 'कुल किराया:')}</span>
                             <span className="text-base font-black text-amber-400">₹{totalAmt}</span>
                           </div>
                           <div>
-                            <span className="text-slate-400 block text-[10px]">एडवांस (Advance):</span>
+                            <span className="text-slate-400 block text-[10px]">{t('Advance Paid:', 'एडवांस जमा:')}</span>
                             <span className="text-sm font-bold text-emerald-400">₹{advanceAmt}</span>
                           </div>
                           <div>
-                            <span className="text-slate-400 block text-[10px]">ग्राहक से बाकी लेना है:</span>
+                            <span className="text-slate-400 block text-[10px]">{t('Balance to Collect:', 'बाकी रकम:')}</span>
                             <span className="text-sm font-black text-white bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-700">
                               ₹{remainingAmt}
                             </span>
@@ -909,16 +903,15 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                         </div>
 
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">पेमेंट का तरीका:</span>
+                          <span className="text-[10px] text-slate-400 block">{t('Payment Method:', 'पेमेंट का तरीका:')}</span>
                           <span className="font-bold text-amber-300">
-                            {b.paymentMethod === 'online' ? '📱 ऑनलाइन एडवांस जमा' : '💵 गाड़ी पर नकद (Cash on Delivery)'}
+                            {b.paymentMethod === 'online' ? t('Online Advance Paid', 'ऑनलाइन एडवांस जमा') : t('Cash on Pickup', 'गाड़ी पर नकद')}
                           </span>
                         </div>
                       </div>
 
-                      {/* Action Buttons for Bookings */}
+                      {/* Action Buttons */}
                       <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
-                        {/* When Pending */}
                         {b.status === 'pending' && (
                           <>
                             <button
@@ -926,19 +919,18 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-1.5 transition"
                             >
                               <CheckCircle className="w-4 h-4" />
-                              <span>स्वीकार करें (Accept Booking)</span>
+                              <span>{t('Accept Booking', 'स्वीकार करें')}</span>
                             </button>
                             <button
                               onClick={() => handleUpdateBookingStatus(b._id, 'cancelled')}
                               className="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-xs sm:text-sm rounded-xl border border-rose-500/30 transition"
                             >
                               <XCircle className="w-4 h-4" />
-                              <span>मना करें (Reject)</span>
+                              <span>{t('Reject', 'मना करें')}</span>
                             </button>
                           </>
                         )}
 
-                        {/* When Confirmed -> Needs OTP to Start */}
                         {b.status === 'confirmed' && (
                           <button
                             onClick={() => {
@@ -949,11 +941,10 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                             className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xl flex items-center gap-2 transition transform active:scale-95"
                           >
                             <Key className="w-4 h-4" />
-                            <span>🔑 राइड शुरू करें (ग्राहक का OTP डालें)</span>
+                            <span>🔑 {t('Start Ride (Enter OTP)', 'राइड शुरू करें (OTP डालें)')}</span>
                           </button>
                         )}
 
-                        {/* When In Progress -> Can Complete Ride */}
                         {b.status === 'in_progress' && (
                           <button
                             onClick={() => {
@@ -964,14 +955,13 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-xl flex items-center gap-2 transition"
                           >
                             <Check className="w-4 h-4" />
-                            <span>🏁 सफ़र पूरा करें (Complete Ride & Take Payment)</span>
+                            <span>🏁 {t('Complete Ride & Collect Fare', 'सफ़र पूरा करें')}</span>
                           </button>
                         )}
 
-                        {/* When Completed */}
                         {b.status === 'completed' && (
                           <span className="text-xs font-black text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-4 py-2 rounded-xl flex items-center gap-1.5">
-                            <CheckCircle className="w-4 h-4" /> यह राइड पूरी हो चुकी है
+                            <CheckCircle className="w-4 h-4" /> {t('Ride Completed', 'यह राइड पूरी हो चुकी है')}
                           </span>
                         )}
                       </div>
@@ -984,9 +974,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         )}
       </main>
 
-      {/* ========================================================= */}
-      {/* MODAL 1: ADD / EDIT CAR (SIMPLE & EASY)                   */}
-      {/* ========================================================= */}
+      {/* MODAL 1: ADD / EDIT CAR */}
       {carModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 space-y-4 shadow-2xl text-white">
@@ -997,9 +985,11 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                 </div>
                 <div>
                   <h3 className="font-black text-base sm:text-lg">
-                    {isEditing ? 'गाड़ी की जानकारी बदलें (Edit Car)' : 'नई गाड़ी जोड़ें (Add New Car)'}
+                    {isEditing ? t('Edit Car Details', 'गाड़ी की जानकारी बदलें') : t('Add New Car', 'नई गाड़ी जोड़ें')}
                   </h3>
-                  <p className="text-[11px] text-slate-400">आसान फॉर्म भरें और अपनी गाड़ी लिस्ट करें</p>
+                  <p className="text-[11px] text-slate-400">
+                    {t('Fill vehicle details and list on marketplace', 'फ़ॉर्म भरें और अपनी गाड़ी लिस्ट करें')}
+                  </p>
                 </div>
               </div>
               <button
@@ -1011,27 +1001,24 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
             </div>
 
             <form onSubmit={handleSaveCar} className="space-y-4 text-xs font-semibold">
-              {/* Car Name */}
               <div>
                 <label className="text-slate-300 block mb-1">
-                  गाड़ी का नाम (Car Name) <span className="text-rose-400">*</span>
+                  {t('Car Name', 'गाड़ी का नाम')} <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="उदा. Swift Dzire, WagonR, Scorpio, Innova"
+                  placeholder={t('e.g. Swift Dzire, WagonR, Scorpio, Innova', 'उदा. Swift Dzire, WagonR, Scorpio')}
                   value={carForm.name}
                   onChange={(e) => setCarForm({ ...carForm, name: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              {/* Rate per KM & Location in Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Rate Per KM */}
                 <div>
                   <label className="text-slate-300 block mb-1">
-                    किराया प्रति KM (Rate ₹/km) <span className="text-rose-400">*</span>
+                    {t('Rate per KM (₹)', 'किराया प्रति KM (₹)')} <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
@@ -1046,30 +1033,26 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-[10px] text-amber-400 mt-0.5 block">डिफ़ॉल्ट ₹20 प्रति KM रहेगा</span>
                 </div>
 
-                {/* Location */}
                 <div>
                   <label className="text-slate-300 block mb-1">
-                    गाड़ी कहाँ उपलब्ध है (Location) <span className="text-rose-400">*</span>
+                    {t('Location / City', 'गाड़ी कहाँ उपलब्ध है')} <span className="text-rose-400">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="उदा. Deoria, Gorakhpur, Mahuadih"
+                    placeholder={t('e.g. Deoria, Gorakhpur', 'उदा. Deoria, Gorakhpur')}
                     value={carForm.locationAddress}
                     onChange={(e) => setCarForm({ ...carForm, locationAddress: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">शहर या एरिया का नाम</span>
                 </div>
               </div>
 
-              {/* Fuel Included or Fuel Extra Charge Option */}
               <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-2">
                 <label className="text-slate-200 block text-xs font-black">
-                  ⛽ तेल की शर्त (Fuel Option):
+                  ⛽ {t('Fuel Option:', 'तेल की शर्त:')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1082,7 +1065,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                     }`}
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>तेल गाड़ी का (Fuel Included)</span>
+                    <span>{t('Fuel Included', 'तेल शामिल है')}</span>
                   </button>
 
                   <button
@@ -1095,46 +1078,44 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                     }`}
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>तेल ग्राहक का (Fuel Extra)</span>
+                    <span>{t('Fuel Extra', 'तेल अलग से')}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Seats & Fuel Type */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 block mb-1">बैठने की सीटें (Seats)</label>
+                  <label className="text-slate-300 block mb-1">{t('Seating Capacity', 'सीटें')}</label>
                   <select
                     value={carForm.seatingCapacity}
                     onChange={(e) => setCarForm({ ...carForm, seatingCapacity: Number(e.target.value) })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value={4}>4 सीटर</option>
-                    <option value={5}>5 सीटर (Standard)</option>
-                    <option value={7}>7 सीटर (Scorpio / Ertiga)</option>
-                    <option value={8}>8 सीटर (Innova)</option>
-                    <option value={12}>12 सीटर (Tempo)</option>
+                    <option value={4}>4 {t('Seats', 'सीटें')}</option>
+                    <option value={5}>5 {t('Seats', 'सीटें')}</option>
+                    <option value={7}>7 {t('Seats', 'सीटें')}</option>
+                    <option value={8}>8 {t('Seats', 'सीटें')}</option>
+                    <option value={12}>12 {t('Seats', 'सीटें')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-slate-300 block mb-1">ईंधन का प्रकार (Fuel)</label>
+                  <label className="text-slate-300 block mb-1">{t('Fuel Type', 'ईंधन')}</label>
                   <select
                     value={carForm.fuelType}
                     onChange={(e) => setCarForm({ ...carForm, fuelType: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value="Diesel">डीज़ल (Diesel)</option>
-                    <option value="Petrol">पेट्रोल (Petrol)</option>
-                    <option value="CNG">सीएनजी (CNG)</option>
-                    <option value="Electric">इलेक्ट्रिक (EV)</option>
+                    <option value="Diesel">{t('Diesel', 'डीज़ल')}</option>
+                    <option value="Petrol">{t('Petrol', 'पेट्रोल')}</option>
+                    <option value="CNG">{t('CNG', 'सीएनजी')}</option>
+                    <option value="Electric">{t('Electric', 'इलेक्ट्रिक')}</option>
                   </select>
                 </div>
               </div>
 
-              {/* Car Photo Upload / Image URL */}
               <div className="space-y-2">
-                <label className="text-slate-300 block mb-1">गाड़ी की फोटो (Car Photo)</label>
+                <label className="text-slate-300 block mb-1">{t('Car Photo', 'गाड़ी की फोटो')}</label>
                 <div className="flex items-center gap-3">
                   {carForm.mainImage ? (
                     <img
@@ -1151,7 +1132,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                   <div className="flex-1 space-y-1.5">
                     <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>{uploadingImage ? 'अपलोड हो रहा है...' : 'गैलरी से फोटो चुनें (Upload Photo)'}</span>
+                      <span>{uploadingImage ? t('Uploading...', 'अपलोड हो रहा है...') : t('Upload Photo', 'फोटो अपलोड करें')}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1162,7 +1143,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                     </label>
                     <input
                       type="url"
-                      placeholder="या फोटो का लिंक डालें (Or paste photo URL)"
+                      placeholder={t('Or paste image link', 'या फोटो का लिंक डालें')}
                       value={carForm.mainImage}
                       onChange={(e) => setCarForm({ ...carForm, mainImage: e.target.value })}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
@@ -1171,58 +1152,23 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                 </div>
               </div>
 
-              {/* Description (Optional) */}
               <div>
-                <label className="text-slate-300 block mb-1">गाड़ी का विवरण (Description - Optional)</label>
+                <label className="text-slate-300 block mb-1">{t('Description (Optional)', 'विवरण (वैकल्पिक)')}</label>
                 <textarea
                   rows={2}
-                  placeholder="उदा. बढ़िया AC गाड़ी, साफ़ सुथरी सीट, अनुभवी ड्राइवर"
+                  placeholder={t('e.g. Clean AC car, well-maintained', 'उदा. साफ़ AC गाड़ी, बढ़िया स्थिति')}
                   value={carForm.description}
                   onChange={(e) => setCarForm({ ...carForm, description: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              {/* Payment Methods Checkbox */}
-              <div className="bg-slate-800/40 p-3 rounded-xl border border-slate-800 flex items-center gap-4 text-xs">
-                <span className="text-slate-300 font-bold">पेमेंट विकल्प:</span>
-                <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={carForm.paymentMethods.includes('cod')}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...carForm.paymentMethods, 'cod']
-                        : carForm.paymentMethods.filter((m) => m !== 'cod');
-                      setCarForm({ ...carForm, paymentMethods: next });
-                    }}
-                    className="rounded text-amber-500"
-                  />
-                  <span>💵 नकद (Cash on Delivery)</span>
-                </label>
-                <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={carForm.paymentMethods.includes('online')}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...carForm.paymentMethods, 'online']
-                        : carForm.paymentMethods.filter((m) => m !== 'online');
-                      setCarForm({ ...carForm, paymentMethods: next });
-                    }}
-                    className="rounded text-amber-500"
-                  />
-                  <span>📱 ऑनलाइन (QR Code)</span>
-                </label>
-              </div>
-
-              {/* Submit Button */}
               <div className="pt-2">
                 <button
                   type="submit"
                   className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition transform active:scale-95"
                 >
-                  {isEditing ? '✓ जानकारी सुरक्षित करें (Save Changes)' : '+ गाड़ी लिस्ट करें (List Car)'}
+                  {isEditing ? t('Save Changes', 'सुरक्षित करें') : t('+ List Car', '+ गाड़ी लिस्ट करें')}
                 </button>
               </div>
             </form>
@@ -1230,16 +1176,14 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* MODAL 2: CUSTOM DATE BLOCK / UNBLOCK                      */}
-      {/* ========================================================= */}
+      {/* MODAL 2: CUSTOM DATES */}
       {dateModalOpen && selectedCarForDates && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-2xl text-white">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-amber-400" />
-                <h3 className="font-black text-base">तारीख बंद या खोलें (Date Availability)</h3>
+                <h3 className="font-black text-base">{t('Date Availability', 'तारीख बंद या खोलें')}</h3>
               </div>
               <button
                 onClick={() => setDateModalOpen(false)}
@@ -1250,15 +1194,14 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
             </div>
 
             <p className="text-xs text-slate-300">
-              गाड़ी: <strong className="text-amber-400">{selectedCarForDates.name}</strong>
+              {t('Vehicle:', 'गाड़ी:')} <strong className="text-amber-400">{selectedCarForDates.name}</strong>
             </p>
             <p className="text-xs text-slate-400">
-              अगर किसी तारीख को गाड़ी पहले से कहीं और बुक है या सर्विसिंग में है, तो वह तारीख यहाँ डालकर बंद कर सकते हैं। उस दिन ग्राहक को यह गाड़ी उपलब्ध नहीं दिखेगी।
+              {t('Block specific dates when your car is unavailable or in repair.', 'अगर किसी तारीख को गाड़ी पहले से कहीं और बुक है, तो वह तारीख यहाँ बंद कर सकते हैं।')}
             </p>
 
-            {/* Block New Date Input */}
             <div className="space-y-2">
-              <label className="text-slate-300 block text-xs font-bold">तारीख चुनें जिसे बंद करना है:</label>
+              <label className="text-slate-300 block text-xs font-bold">{t('Select date to block:', 'तारीख चुनें:')}</label>
               <div className="flex gap-2">
                 <input
                   type="date"
@@ -1273,19 +1216,18 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                   disabled={!dateToBlock}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow transition"
                 >
-                  बंद करें (Block)
+                  {t('Block', 'बंद करें')}
                 </button>
               </div>
             </div>
 
-            {/* Currently Blocked Dates List */}
             <div className="pt-3 border-t border-slate-800 space-y-2">
               <span className="text-xs font-bold text-slate-400 block">
-                वर्तमान में बंद तारीखें (Currently Blocked Dates):
+                {t('Currently Blocked Dates:', 'बंद तारीखें:')}
               </span>
               {(!selectedCarForDates.unavailableDates || selectedCarForDates.unavailableDates.length === 0) ? (
                 <p className="text-xs text-emerald-400 font-semibold bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-900/50">
-                  ✓ कोई तारीख बंद नहीं है। गाड़ी सभी दिनों में उपलब्ध है।
+                  {t('✓ No dates blocked. Vehicle is available on all days.', '✓ कोई तारीख बंद नहीं है। गाड़ी सभी दिनों में उपलब्ध है।')}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
@@ -1299,7 +1241,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                         type="button"
                         onClick={() => handleToggleDate(selectedCarForDates._id, d)}
                         className="text-rose-400 hover:text-white p-0.5 rounded"
-                        title="खोलें (Make Available)"
+                        title={t('Unblock', 'खोलें')}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1313,15 +1255,13 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
               onClick={() => setDateModalOpen(false)}
               className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition"
             >
-              बंद करें (Done)
+              {t('Close', 'बंद करें')}
             </button>
           </div>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* MODAL 3: START RIDE OTP VERIFICATION                      */}
-      {/* ========================================================= */}
+      {/* MODAL 3: START RIDE OTP */}
       {otpModalOpen && selectedBookingForOtp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-white text-center">
@@ -1330,9 +1270,9 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
             </div>
 
             <div className="space-y-1">
-              <h3 className="font-black text-lg">राइड शुरू करें (Start Ride)</h3>
+              <h3 className="font-black text-lg">{t('Start Ride', 'राइड शुरू करें')}</h3>
               <p className="text-xs text-slate-400">
-                गाड़ी ग्राहक के पास पहुँचने पर ग्राहक के मोबाइल पर आया 4 अंकों का OTP यहाँ दर्ज करें।
+                {t('Enter 4-digit OTP provided by customer to begin trip.', 'ग्राहक के फोन पर आया 4 अंकों का OTP यहाँ दर्ज करें।')}
               </p>
             </div>
 
@@ -1356,13 +1296,13 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                   onClick={() => setOtpModalOpen(false)}
                   className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700"
                 >
-                  रद्द करें
+                  {t('Cancel', 'रद्द करें')}
                 </button>
                 <button
                   type="submit"
                   className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg"
                 >
-                  वेरीफाई करें
+                  {t('Verify OTP', 'वेरीफाई करें')}
                 </button>
               </div>
             </form>
@@ -1370,9 +1310,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* MODAL 4: COMPLETE RIDE & PAYMENT CONFIRMATION             */}
-      {/* ========================================================= */}
+      {/* MODAL 4: COMPLETE RIDE */}
       {completeModalOpen && selectedBookingForComplete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-white">
@@ -1380,14 +1318,14 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
               <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto">
                 <CheckCircle className="w-7 h-7" />
               </div>
-              <h3 className="font-black text-lg">राइड पूरी करें (Complete Trip)</h3>
+              <h3 className="font-black text-lg">{t('Complete Ride', 'सफ़र पूरा करें')}</h3>
               <p className="text-xs text-slate-400">
-                सफ़र समाप्त हो गया है। कृपया ग्राहक से बाकी बची रकम प्राप्त कर लें।
+                {t('Collect remaining balance payment from customer.', 'कृपया ग्राहक से बाकी बची रकम प्राप्त कर लें।')}
               </p>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase font-bold">बाकी पेमेंट (Balance to Collect):</span>
+              <span className="text-[10px] text-slate-400 uppercase font-bold">{t('Balance to Collect:', 'बाकी रकम:')}</span>
               <p className="text-2xl font-black text-emerald-400">
                 ₹{selectedBookingForComplete.pricing?.remainingAmount || 0}
               </p>
@@ -1395,7 +1333,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
 
             <form onSubmit={handleCompleteRide} className="space-y-3">
               <div>
-                <label className="text-xs text-slate-300 block mb-1 font-bold">पेमेंट कैसे मिला?</label>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">{t('Payment Method Received', 'पेमेंट का तरीका')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -1406,7 +1344,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    💵 नकद (Cash)
+                    💵 {t('Cash', 'नकद')}
                   </button>
                   <button
                     type="button"
@@ -1417,7 +1355,7 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    📱 ऑनलाइन (UPI)
+                    📱 {t('UPI / Online', 'ऑनलाइन')}
                   </button>
                 </div>
               </div>
@@ -1428,13 +1366,13 @@ export default function OwnerDashboard({ onNavigate, onLogout }) {
                   onClick={() => setCompleteModalOpen(false)}
                   className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700"
                 >
-                  रद्द करें
+                  {t('Cancel', 'रद्द करें')}
                 </button>
                 <button
                   type="submit"
                   className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-lg"
                 >
-                  ✓ पूरी करें
+                  ✓ {t('Complete', 'पूरी करें')}
                 </button>
               </div>
             </form>

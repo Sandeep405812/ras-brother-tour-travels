@@ -103,12 +103,12 @@ export default function RegisterPage({ onNavigate }) {
 
             {role === 'owner' && (
               <div>
-                <label className="text-slate-300 block mb-1">Travels / Business Name (कार ट्रैवल्स / बिज़नेस नाम)</label>
+                <label className="text-slate-300 block mb-1">Travels or Business Name</label>
                 <div className="relative">
                   <input
                     type="text"
                     required
-                    placeholder="उदा. Sandeep Tour & Travels"
+                    placeholder="e.g. Royal Heritage Travels"
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-2xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"

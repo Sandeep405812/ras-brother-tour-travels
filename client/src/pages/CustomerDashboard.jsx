@@ -28,9 +28,13 @@ import {
   Check,
 } from 'lucide-react';
 
+import { useLanguage } from '../context/LanguageContext';
+import LanguageToggle from '../components/common/LanguageToggle';
+
 export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, onLogout }) {
   const { user, token } = useAuth();
   const { showToast } = useNotification();
+  const { lang, t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'offers' | 'payments' | 'profile'
   const [bookings, setBookings] = useState([]);
@@ -49,18 +53,32 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
   const [reviewComment, setReviewComment] = useState('');
 
   const handleShareWhatsApp = (b) => {
-    const text = `🚗 *RAS BROTHER TOUR & TRAVELS — बुकिंग रसीद (BOOKING RECEIPT)*\n\n` +
-      `🆔 *बुकिंग आईडी:* #${b.bookingId}\n` +
-      `🚘 *गाड़ी (Car):* ${b.car?.brand || ''} ${b.car?.name || 'Car'}\n` +
-      `📅 *तारीख:* ${new Date(b.startDate).toLocaleDateString('hi-IN')} (${b.startTime || '10:00 AM'})\n` +
-      `🟢 *पिकअप जगह:* ${b.pickupLocation?.address || 'N/A'}\n` +
-      (b.destinationAddress ? `🔴 *ड्रॉप जगह:* ${b.destinationAddress}\n` : '') +
-      (b.distanceKm ? `📏 *कुल दूरी:* ${b.distanceKm} km\n` : '') +
-      `💰 *कुल किराया:* ₹${b.pricing?.totalAmount?.toLocaleString('en-IN')}\n` +
-      `💳 *एडवांस जमा:* ₹${b.pricing?.advanceAmount?.toLocaleString('en-IN')}\n` +
-      `💵 *बाकी रकम:* ₹${(b.pricing?.remainingAmount || 0)?.toLocaleString('en-IN')}\n` +
-      (b.startOtp ? `🔑 *राइड शुरू करने का OTP:* *${b.startOtp}* (गाड़ी आने पर ड्राइवर को बताएं)\n` : '') +
-      `\n✨ *RAS Brother Tour & Travels — सुरक्षित और आरामदायक यात्रा*`;
+    const isHi = lang === 'hi';
+    const text = isHi
+      ? `🚗 *RAS BROTHER TOUR & TRAVELS — बुकिंग रसीद*\n\n` +
+        `🆔 *बुकिंग आईडी:* #${b.bookingId}\n` +
+        `🚘 *गाड़ी:* ${b.car?.brand || ''} ${b.car?.name || 'Car'}\n` +
+        `📅 *तारीख:* ${new Date(b.startDate).toLocaleDateString('hi-IN')} (${b.startTime || '10:00 AM'})\n` +
+        `🟢 *पिकअप जगह:* ${b.pickupLocation?.address || 'N/A'}\n` +
+        (b.destinationAddress ? `🔴 *ड्रॉप जगह:* ${b.destinationAddress}\n` : '') +
+        (b.distanceKm ? `📏 *कुल दूरी:* ${b.distanceKm} km\n` : '') +
+        `💰 *कुल किराया:* ₹${b.pricing?.totalAmount?.toLocaleString('en-IN')}\n` +
+        `💳 *एडवांस जमा:* ₹${b.pricing?.advanceAmount?.toLocaleString('en-IN')}\n` +
+        `💵 *बाकी रकम:* ₹${(b.pricing?.remainingAmount || 0)?.toLocaleString('en-IN')}\n` +
+        (b.startOtp ? `🔑 *राइड शुरू करने का OTP:* *${b.startOtp}* (गाड़ी आने पर ड्राइवर को बताएं)\n` : '') +
+        `\n✨ *RAS Brother Tour & Travels — सुरक्षित और आरामदायक यात्रा*`
+      : `🚗 *RAS BROTHER TOUR & TRAVELS — BOOKING RECEIPT*\n\n` +
+        `🆔 *Booking ID:* #${b.bookingId}\n` +
+        `🚘 *Vehicle:* ${b.car?.brand || ''} ${b.car?.name || 'Car'}\n` +
+        `📅 *Date:* ${new Date(b.startDate).toLocaleDateString('en-US')} (${b.startTime || '10:00 AM'})\n` +
+        `🟢 *Pickup Location:* ${b.pickupLocation?.address || 'N/A'}\n` +
+        (b.destinationAddress ? `🔴 *Drop Location:* ${b.destinationAddress}\n` : '') +
+        (b.distanceKm ? `📏 *Distance:* ${b.distanceKm} km\n` : '') +
+        `💰 *Total Fare:* ₹${b.pricing?.totalAmount?.toLocaleString('en-IN')}\n` +
+        `💳 *Advance Paid:* ₹${b.pricing?.advanceAmount?.toLocaleString('en-IN')}\n` +
+        `💵 *Balance on Arrival:* ₹${(b.pricing?.remainingAmount || 0)?.toLocaleString('en-IN')}\n` +
+        (b.startOtp ? `🔑 *Start Ride OTP:* *${b.startOtp}* (Share with chauffeur upon arrival)\n` : '') +
+        `\n✨ *RAS Brother Tour & Travels — Safe & Comfortable Travel*`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -162,6 +180,8 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <LanguageToggle variant="light" />
+
             {onNavigate && (
               <>
                 <button
@@ -170,7 +190,7 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
                   className="px-3 sm:px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-sm"
                 >
                   <Car className="w-3.5 h-3.5" />
-                  <span>🚗 Book Your Car</span>
+                  <span>🚗 {t('Book Your Car', 'गाड़ी बुक करें')}</span>
                 </button>
               </>
             )}
@@ -179,7 +199,7 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
               onClick={onLogout}
               className="px-2.5 sm:px-4 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold transition flex items-center gap-1 border border-slate-200"
             >
-              <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Logout</span>
+              <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{t('Logout', 'लॉगआउट')}</span>
             </button>
           </div>
         </div>

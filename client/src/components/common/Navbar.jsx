@@ -17,9 +17,12 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { useLanguage } from '../../context/LanguageContext';
+import LanguageToggle from './LanguageToggle';
 
 export default function Navbar({ onNavigate, currentPage }) {
   const { user, isAuthenticated, role, logout } = useAuth();
+  const { t } = useLanguage();
   const { cartCount, setIsCartOpen } = useCart();
   const { notifications, unreadCount, markAsRead, markAllRead } = useNotification();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -105,6 +108,7 @@ export default function Navbar({ onNavigate, currentPage }) {
 
           {/* Right Action Area */}
           <div className="hidden lg:flex items-center gap-3">
+            <LanguageToggle variant="dark" />
 
             {isAuthenticated ? (
               <>
@@ -245,7 +249,7 @@ export default function Navbar({ onNavigate, currentPage }) {
                           className="w-full text-left px-4 py-2.5 text-xs flex items-center gap-2.5 hover:bg-slate-800 text-slate-300 hover:text-amber-400"
                         >
                           <Car className="w-4 h-4 text-amber-400" />
-                          मेरी गाड़ियाँ और बुकिंग (My Cars &amp; Bookings)
+                          {t('My Cars & Bookings', 'मेरी गाड़ियाँ और बुकिंग')}
                         </button>
                       )}
 
@@ -310,6 +314,7 @@ export default function Navbar({ onNavigate, currentPage }) {
 
           {/* Mobile Menu Button & User Avatar */}
           <div className="flex lg:hidden items-center gap-2">
+            <LanguageToggle variant="dark" />
 
             {isAuthenticated && (
               <button
