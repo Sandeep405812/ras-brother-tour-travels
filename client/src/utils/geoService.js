@@ -20,7 +20,7 @@ async function loadGooglePlaces() {
   }
 
   setOptions({
-    key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyCRkPmfLzNuvIJxZMoKdNf4lw97ImyCXU8',
     v: 'weekly',
   });
 
@@ -449,6 +449,10 @@ export async function geocodeAddress(searchText) {
 
   // Try Google Geocoding first
   try {
+    setOptions({
+      key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyCRkPmfLzNuvIJxZMoKdNf4lw97ImyCXU8',
+      v: 'weekly',
+    });
     const { Geocoder } = await importLibrary('geocoding');
     const geocoder = new Geocoder();
     const response = await geocoder.geocode({

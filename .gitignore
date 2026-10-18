@@ -3,7 +3,7 @@ node_modules/
 */node_modules/
 
 # Production build
-client/dist/
+# client/dist/ is tracked so production servers have index.html ready
 dist/
 
 # Environment Variables & secrets
