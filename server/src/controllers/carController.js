@@ -178,13 +178,13 @@ exports.getAllCars = async (req, res, next) => {
       )
       .sort(sortOption)
       .skip(skip)
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
 
     // ========================================================
-    // PROCESS DISTANCE
+    // PROCESS DISTANCE (Optimized without toObject overhead)
     // ========================================================
-    let processedCars = cars.map((c) => {
-      const carObj = c.toObject();
+    let processedCars = cars.map((carObj) => {
 
       if (
         hasCoords &&

@@ -73,6 +73,27 @@ const bookingSchema = new mongoose.Schema(
       default: 'Wedding Car Booking',
     },
 
+    // Purpose of Booking: 1. Wedding, 2. Party, 3. Travel
+    bookingPurpose: {
+      type: String,
+      enum: ['Wedding', 'Party', 'Travel'],
+      default: 'Wedding',
+    },
+
+    // Trip Direction: 1-way or 2-way (Round Trip)
+    tripType: {
+      type: String,
+      enum: ['1-way', '2-way'],
+      default: '1-way',
+    },
+
+    // Total hours requested for 2-way / round trip
+    totalHours: {
+      type: Number,
+      default: 8,
+      min: 1,
+    },
+
     // ============================================================
     // DATE & TIME
     // ============================================================
@@ -611,8 +632,10 @@ const bookingSchema = new mongoose.Schema(
 
 
 // ============================================================
-// INDEXES
+// INDEXES (Optimized for Sub-millisecond Execution & Low Storage Footprint)
 // ============================================================
+
+bookingSchema.index({ bookingId: 1 }, { unique: true, sparse: true });
 
 bookingSchema.index({
   car: 1,
@@ -623,12 +646,19 @@ bookingSchema.index({
 
 bookingSchema.index({
   customer: 1,
+  status: 1,
   createdAt: -1,
 });
 
 bookingSchema.index({
   owner: 1,
+  status: 1,
   createdAt: -1,
+});
+
+bookingSchema.index({
+  status: 1,
+  startDate: 1,
 });
 
 

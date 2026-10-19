@@ -1,6 +1,7 @@
 import React from 'react';
-import { Star, ShieldCheck, Users, Fuel, Sparkles, MapPin, Tag, PhoneCall, Check, Zap, AlertCircle } from 'lucide-react';
+import { Star, ShieldCheck, Users, Fuel, Sparkles, MapPin, Tag, PhoneCall, Check, Zap, AlertCircle, ShoppingCart } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useCart } from '../../context/CartContext';
 
 export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeDetails = null }) {
   const { lang, t } = useLanguage();
@@ -16,6 +17,9 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
 
   const isUnavailable = Boolean(car.isUnavailableOnDate);
   const unavailableReason = car.unavailableReason || (lang === 'hi' ? 'इस तारीख पर पहले से बुक है' : 'Already Booked on this date');
+
+  const { addToCart, isCarInCart, setIsCartOpen } = useCart();
+  const inCart = isCarInCart(car._id);
 
   return (
     <div className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden flex flex-col group ${
@@ -184,6 +188,29 @@ export default function CarCard({ car, onBook, onAskQuery, onViewDetails, routeD
               <PhoneCall className="w-3.5 h-3.5 text-amber-600" />
               <span className="hidden sm:inline">{t('Query', 'पूछताछ')}</span>
             </button>
+
+            {/* Add to Cart / Multi-Car Fleet Booking */}
+            {!isUnavailable && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (inCart) {
+                    setIsCartOpen(true);
+                  } else {
+                    addToCart(car, { customTotal: calculatedFare || (car.pricing?.perDay || 5000) });
+                  }
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                  inCart
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white'
+                }`}
+                title={inCart ? t('View Fleet Cart', 'कार्ट देखें') : t('Add multiple cars to fleet cart', 'मल्टीपल गाड़ी बुक करने के लिए कार्ट में जोड़ें')}
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span>{inCart ? t('✓ In Cart', '✓ कार्ट में') : t('+ Cart', '+ कार्ट')}</span>
+              </button>
+            )}
 
             {/* Book Now Button */}
             {isUnavailable ? (

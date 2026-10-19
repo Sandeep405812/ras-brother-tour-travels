@@ -158,6 +158,12 @@ exports.createBooking = async (req, res, next) => {
 
       eventType,
 
+      bookingPurpose = 'Wedding',
+
+      tripType = '1-way',
+
+      totalHours = 8,
+
       startDate,
 
       endDate,
@@ -443,14 +449,27 @@ exports.createBooking = async (req, res, next) => {
     // Road Distance × Owner Per KM Rate
     // ========================================================
 
+    const isTwoWay = tripType === '2-way';
+    const effectiveDistance = isTwoWay ? distNum * 2 : distNum;
+
     const distanceFare =
       Math.round(
-        distNum * perKmRate
+        effectiveDistance * perKmRate
       );
 
+    // If 2-way round trip, calculate total hours rental / waiting
+    const hourlyRate = Number(car.pricing?.perHour) || 150;
+    const hoursCharges = isTwoWay ? (Number(totalHours) || 8) * hourlyRate : 0;
 
     let baseAmount =
-      distanceFare;
+      distanceFare + hoursCharges;
+
+    // Apply wedding or party rate if set by owner
+    if (bookingPurpose === 'Wedding' && car.pricing?.weddingRate > 0) {
+      baseAmount = Math.max(baseAmount, car.pricing.weddingRate);
+    } else if (bookingPurpose === 'Party' && car.pricing?.partyRate > 0) {
+      baseAmount = Math.max(baseAmount, car.pricing.partyRate);
+    }
 
     let driverCharges = 0;
 
@@ -645,6 +664,17 @@ exports.createBooking = async (req, res, next) => {
         eventType:
           eventType ||
           'Wedding Car Booking',
+
+        bookingPurpose:
+          bookingPurpose ||
+          'Wedding',
+
+        tripType:
+          tripType ||
+          '1-way',
+
+        totalHours:
+          totalHours ? Number(totalHours) : 8,
 
         startDate:
           start,
@@ -847,8 +877,8 @@ exports.getMyBookings =
           )
           .sort({
             createdAt: -1,
-          });
-
+          })
+          .lean();
 
       res.json({
         success: true,
@@ -875,7 +905,7 @@ exports.getMyBookings =
 exports.getOwnerBookings =
   async (req, res, next) => {
     try {
-      const ownerCars = await Car.find({ owner: req.user.id }).select('_id');
+      const ownerCars = await Car.find({ owner: req.user.id }).select('_id').lean();
       const ownerCarIds = ownerCars.map((c) => c._id);
 
       const bookings =
@@ -892,7 +922,8 @@ exports.getOwnerBookings =
           )
           .sort({
             createdAt: -1,
-          });
+          })
+          .lean();
 
       res.json({
         success: true,
@@ -1236,6 +1267,19 @@ exports.startRideWithOtp =
       }
 
 
+      // Check that ride is being started on scheduled date
+      const now = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+      const startIST = new Date(new Date(booking.startDate).getTime() + istOffset).toISOString().split('T')[0];
+
+      if (todayIST < startIST) {
+        return res.status(400).json({
+          success: false,
+          message: `Ride can only be started on the scheduled date (${new Date(booking.startDate).toLocaleDateString('en-IN')}). OTP will unlock on that day!`,
+        });
+      }
+
       if (
         String(otp).trim() !==
         String(
@@ -1380,6 +1424,25 @@ exports.completeRide =
 
 
       await booking.save();
+
+      // Automatically restore car availability so it shows back in fleet immediately!
+      try {
+        await Car.findByIdAndUpdate(booking.car._id, {
+          isAvailable: true,
+          paused: false,
+        });
+
+        const carDoc = await Car.findById(booking.car._id);
+        if (carDoc && carDoc.unavailableDates?.length) {
+          const bookedDay = new Date(booking.startDate).toISOString().split('T')[0];
+          carDoc.unavailableDates = carDoc.unavailableDates.filter(
+            (d) => new Date(d).toISOString().split('T')[0] !== bookedDay
+          );
+          await carDoc.save();
+        }
+      } catch (err) {
+        console.warn('Car availability restoration notice:', err);
+      }
 
 
       // Credit owner profile earnings & available wallet balance

@@ -30,7 +30,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Map,
+  Repeat,
+  Sparkles,
+  PartyPopper,
+  Compass,
+  FileText,
+  Share2,
 } from 'lucide-react';
+import TripPassInvoiceModal from '../booking/TripPassInvoiceModal';
+import { formatBookingWhatsAppMessage, openWhatsAppMessage } from '../../utils/whatsappHelper';
 
 export default function BookingModal({
   car,
@@ -79,6 +87,14 @@ export default function BookingModal({
   const [calculatedDistance, setCalculatedDistance] = useState(
     initialDetails?.calculatedDistance || 0
   );
+
+  // =========================================================
+  // TRIP PURPOSE & TYPE (1-Way vs 2-Way)
+  // =========================================================
+  const [bookingPurpose, setBookingPurpose] = useState('Travel'); // 'Wedding' | 'Party' | 'Travel'
+  const [tripType, setTripType] = useState('1-way'); // '1-way' | '2-way'
+  const [totalHours, setTotalHours] = useState(8);
+  const [showPassModal, setShowPassModal] = useState(false);
 
   // =========================================================
   // PAYMENT STATE
@@ -149,8 +165,12 @@ export default function BookingModal({
   // FARE
   // =========================================================
 
-  // Rate fallback if owner has not explicitly specified perKm
+  // Owner set rates
   const perKmRate = Number(car.pricing?.perKm) || 20;
+  const hourlyRate = Number(car.pricing?.perHour) || 150;
+  const weddingRate = Number(car.pricing?.weddingRate) || 0;
+  const partyRate = Number(car.pricing?.partyRate) || 0;
+  const purposeSurcharge = bookingPurpose === 'Wedding' ? weddingRate : (bookingPurpose === 'Party' ? partyRate : 0);
 
   const hasValidPerKmRate =
     Number.isFinite(perKmRate) && perKmRate > 0;
@@ -159,9 +179,14 @@ export default function BookingModal({
     Number.isFinite(Number(calculatedDistance)) &&
     Number(calculatedDistance) > 0;
 
+  const distanceMultiplier = tripType === '2-way' ? 2 : 1;
+  const effectiveDistance = Number(calculatedDistance) * distanceMultiplier;
+  const distanceCharge = Math.round(effectiveDistance * perKmRate);
+  const hoursCharge = tripType === '2-way' ? (Number(totalHours) || 4) * hourlyRate : 0;
+
   const tripTotal =
     hasValidPerKmRate && hasValidDistance
-      ? Math.round(Number(calculatedDistance) * perKmRate)
+      ? Math.max(100, Math.round(distanceCharge + hoursCharge + purposeSurcharge))
       : 0;
 
   // =========================================================
@@ -301,7 +326,11 @@ export default function BookingModal({
       setCalculatedDistance(activeDistance);
     }
 
-    const calculatedTripTotal = Math.max(100, Math.round(activeDistance * perKmRate));
+    const activeMultiplier = tripType === '2-way' ? 2 : 1;
+    const activeEffectiveDist = activeDistance * activeMultiplier;
+    const activeDistCharge = Math.round(activeEffectiveDist * perKmRate);
+    const activeHoursCharge = tripType === '2-way' ? (Number(totalHours) || 4) * hourlyRate : 0;
+    const calculatedTripTotal = Math.max(100, Math.round(activeDistCharge + activeHoursCharge + purposeSurcharge));
 
     try {
       const res = await fetch(
@@ -322,6 +351,12 @@ export default function BookingModal({
             endDate: startDate,
 
             startTime,
+
+            bookingPurpose,
+
+            tripType,
+
+            totalHours: tripType === '2-way' ? Number(totalHours) || 4 : 0,
 
             pickupLocation: {
               address: sourceAddress,
@@ -515,55 +550,85 @@ export default function BookingModal({
               </div>
 
               <div className="flex justify-between">
-
                 <span className="text-slate-500">
-                  Route ({calculatedDistance} KM):
+                  Purpose & Trip:
                 </span>
-
-                <span className="font-bold truncate max-w-[200px]">
-                  {sourceAddress} ➔ {destinationAddress}
+                <span className="font-bold text-amber-800">
+                  {bookingPurpose} • {tripType === '2-way' ? `Two-Way (${totalHours} hrs)` : '1-Way'}
                 </span>
-
               </div>
 
               <div className="flex justify-between">
+                <span className="text-slate-500">
+                  Route ({tripType === '2-way' ? `${calculatedDistance}x2 = ${effectiveDistance}` : calculatedDistance} KM):
+                </span>
+                <span className="font-bold truncate max-w-[200px]">
+                  {sourceAddress} ➔ {destinationAddress}
+                </span>
+              </div>
 
+              <div className="flex justify-between">
                 <span className="text-slate-500">
                   Payment Mode:
                 </span>
-
                 <span className="font-black text-amber-700 uppercase">
                   {paymentMethod === 'cod'
                     ? 'Cash on Delivery (COD)'
                     : 'Online UPI'}
                 </span>
-
               </div>
 
               <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-extrabold text-slate-900">
-
                 <span>
                   Total Fare:
                 </span>
-
                 <span className="text-emerald-700">
-                  ₹
-                  {tripTotal.toLocaleString(
-                    'en-IN'
-                  )}
+                  ₹{tripTotal.toLocaleString('en-IN')}
                 </span>
-
               </div>
-
             </div>
 
-            <div className="flex gap-3">
+            {/* Quick Actions: VIP Pass & WhatsApp Notification */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowPassModal(true)}
+                className="py-3 px-3 rounded-2xl font-black text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 flex items-center justify-center gap-1.5 shadow-md transition transform active:scale-95"
+              >
+                <FileText className="w-4 h-4" />
+                <span>📄 View Pass &amp; Invoice</span>
+              </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  onClose();
+                  const msg = formatBookingWhatsAppMessage(bookingSuccessData || {
+                    bookingId: bookingSuccessData?.bookingId,
+                    car,
+                    startDate,
+                    startTime,
+                    bookingPurpose,
+                    tripType,
+                    pickupLocation: { address: sourceAddress },
+                    destinationAddress,
+                    distanceKm: effectiveDistance,
+                    pricing: { totalAmount: tripTotal },
+                    startOtp: bookingSuccessData?.startOtp || '1234',
+                  });
+                  openWhatsAppMessage(msg);
+                }}
+                className="py-3 px-3 rounded-2xl font-black text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-1.5 shadow-md transition transform active:scale-95"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>💬 WhatsApp Share</span>
+              </button>
+            </div>
 
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
                   if (onNavigate) {
                     onNavigate('customer-dashboard');
                   }
@@ -580,9 +645,22 @@ export default function BookingModal({
               >
                 Close
               </button>
-
             </div>
 
+            {/* Digital Trip Pass & Professional Invoice Modal */}
+            {bookingSuccessData && (
+              <TripPassInvoiceModal
+                booking={{
+                  ...bookingSuccessData,
+                  car: bookingSuccessData.car || car,
+                  bookingPurpose: bookingSuccessData.bookingPurpose || bookingPurpose,
+                  tripType: bookingSuccessData.tripType || tripType,
+                  totalHours: bookingSuccessData.totalHours || totalHours,
+                }}
+                isOpen={showPassModal}
+                onClose={() => setShowPassModal(false)}
+              />
+            )}
           </div>
 
         ) : (
@@ -695,6 +773,163 @@ export default function BookingModal({
 
               </div>
 
+            </div>
+
+            {/* =================================================
+                BOOKING PURPOSE: Wedding, Party, Travel
+            ================================================= */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>1. Booking Purpose / किस लिए चाहिए?</span>
+                <span className="text-[10px] text-amber-600 font-semibold lowercase">owner-set rates</span>
+              </label>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBookingPurpose('Wedding')}
+                  className={`p-2.5 rounded-2xl border text-center transition flex flex-col items-center gap-1 ${
+                    bookingPurpose === 'Wedding'
+                      ? 'bg-amber-500/10 border-amber-500 text-amber-950 font-black shadow-sm ring-2 ring-amber-400/40'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 font-semibold'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span className="text-xs">Wedding</span>
+                  <span className="text-[10px] text-slate-500 font-medium">शादी / बारात</span>
+                  {weddingRate > 0 && (
+                    <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-full">
+                      +₹{weddingRate}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBookingPurpose('Party')}
+                  className={`p-2.5 rounded-2xl border text-center transition flex flex-col items-center gap-1 ${
+                    bookingPurpose === 'Party'
+                      ? 'bg-amber-500/10 border-amber-500 text-amber-950 font-black shadow-sm ring-2 ring-amber-400/40'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 font-semibold'
+                  }`}
+                >
+                  <PartyPopper className="w-4 h-4 text-rose-500" />
+                  <span className="text-xs">Party / Event</span>
+                  <span className="text-[10px] text-slate-500 font-medium">पार्टी / फंक्शन</span>
+                  {partyRate > 0 && (
+                    <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded-full">
+                      +₹{partyRate}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBookingPurpose('Travel')}
+                  className={`p-2.5 rounded-2xl border text-center transition flex flex-col items-center gap-1 ${
+                    bookingPurpose === 'Travel'
+                      ? 'bg-amber-500/10 border-amber-500 text-amber-950 font-black shadow-sm ring-2 ring-amber-400/40'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 font-semibold'
+                  }`}
+                >
+                  <Compass className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs">Travel / Tour</span>
+                  <span className="text-[10px] text-slate-500 font-medium">सफ़र / टूर</span>
+                  <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded-full">
+                    Regular Rate
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* =================================================
+                TRIP TYPE: 1-Way vs Two-Way (Round Trip)
+            ================================================= */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>2. Trip Direction / 1 Way या Two Way</span>
+                <span className="text-[10px] text-slate-500 font-semibold">
+                  {tripType === '2-way' ? `₹${hourlyRate}/hr vehicle standby` : 'Single point-to-point'}
+                </span>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTripType('1-way')}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+                    tripType === '1-way'
+                      ? 'bg-slate-900 border-slate-900 text-white font-bold shadow'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 font-semibold'
+                  }`}
+                >
+                  <Navigation className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold leading-tight">1-Way (एक तरफ)</div>
+                    <div className="text-[10px] text-slate-400">Direct drop-off only</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTripType('2-way')}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+                    tripType === '2-way'
+                      ? 'bg-slate-900 border-slate-900 text-white font-bold shadow'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 font-semibold'
+                  }`}
+                >
+                  <Repeat className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold leading-tight">Two-Way (आना-जाना)</div>
+                    <div className="text-[10px] text-amber-300">Round trip + standby hours</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* IF TWO-WAY: SELECT TOTAL HOURS */}
+              {tripType === '2-way' && (
+                <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-2xl space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                      ⏱️ कुल घंटे (Total Trip & Standby Hours):
+                    </span>
+                    <span className="text-xs font-black text-amber-900 font-mono">
+                      {totalHours} Hours
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[4, 8, 12, 24].map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setTotalHours(h)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold transition ${
+                          totalHours === h
+                            ? 'bg-amber-600 text-white shadow-sm'
+                            : 'bg-white text-slate-700 border border-amber-200 hover:bg-amber-50'
+                        }`}
+                      >
+                        {h} hrs
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[11px] text-amber-900 font-medium">या कस्टम घंटे डालें:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="168"
+                      value={totalHours}
+                      onChange={(e) => setTotalHours(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-20 p-1.5 rounded-lg border border-amber-300 bg-white text-xs font-mono font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                    <span className="text-[11px] text-amber-800">hours (@ ₹{hourlyRate}/hr)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* =================================================
@@ -844,50 +1079,53 @@ export default function BookingModal({
                 DISTANCE & FARE
             ================================================= */}
 
-            <div className="p-3.5 bg-amber-50/70 border border-amber-300/80 rounded-2xl flex items-center justify-between">
+            <div className="p-3.5 bg-amber-50/70 border border-amber-300/80 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                    <span>
+                      {tripType === '2-way' ? '🔁 Round Trip Distance:' : '➡️ One-Way Distance:'}
+                    </span>
+                    <span className="font-mono text-slate-900 font-black">
+                      {calculatedDistance > 0
+                        ? `${calculatedDistance} KM ${tripType === '2-way' ? `× 2 = ${effectiveDistance} KM` : ''}`
+                        : 'Select Locations'}
+                    </span>
+                  </div>
 
-              <div>
-
-                <div className="text-[11px] font-bold text-amber-900">
-
-                  Estimated Distance:{' '}
-
-                  {calculatedDistance > 0
-                    ? `${calculatedDistance} KM`
-                    : 'Select Pickup & Drop'}
-
+                  <div className="text-[10px] text-amber-800 mt-0.5 space-x-2">
+                    <span>Rate: ₹{perKmRate}/km</span>
+                    <span>• {bookingPurpose} booking</span>
+                    <span>• {car.fuelIncluded !== false ? 'Fuel Included' : 'Fuel Extra'}</span>
+                  </div>
                 </div>
 
-                <div className="text-[10px] text-amber-700">
-
-                  Rate: ₹{perKmRate}/km{' '}
-
-                  {car.fuelIncluded !==
-                  false
-                    ? '(Fuel Included)'
-                    : '(Fuel Extra)'}
-
+                <div className="text-right">
+                  <div className="text-[10px] uppercase font-bold text-slate-500">
+                    Trip Total
+                  </div>
+                  <div className="text-xl font-black text-slate-900 font-mono">
+                    ₹{tripTotal.toLocaleString('en-IN')}
+                  </div>
                 </div>
-
               </div>
 
-              <div className="text-right">
-
-                <div className="text-[10px] uppercase font-bold text-slate-500">
-                  Trip Total
-                </div>
-
-                <div className="text-xl font-black text-slate-900">
-
-                  ₹
-                  {tripTotal.toLocaleString(
-                    'en-IN'
-                  )}
-
-                </div>
-
+              {/* Breakdown tags */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-amber-200/60 text-[10px] font-semibold text-slate-700">
+                <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200">
+                  🚗 Distance: ₹{distanceCharge}
+                </span>
+                {tripType === '2-way' && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-bold">
+                    ⏱️ {totalHours}h Standby: ₹{hoursCharge}
+                  </span>
+                )}
+                {purposeSurcharge > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                    ✨ {bookingPurpose}: +₹{purposeSurcharge}
+                  </span>
+                )}
               </div>
-
             </div>
 
             {/* =================================================

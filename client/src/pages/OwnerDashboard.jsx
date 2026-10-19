@@ -40,6 +40,8 @@ import {
 import { uploadSingleFile } from '../utils/imageUpload';
 import LocationAutocomplete from '../components/common/LocationAutocomplete';
 import { normalizeCoordinates } from '../utils/distanceCalculator';
+import AssignDriverModal from '../components/booking/AssignDriverModal';
+import TripPassInvoiceModal from '../components/booking/TripPassInvoiceModal';
 
 export default function OwnerDashboard({
   onNavigate,
@@ -180,13 +182,21 @@ export default function OwnerDashboard({
   const [counterInputOpenId, setCounterInputOpenId] = useState(null);
   const [counterAmountInput, setCounterAmountInput] = useState('');
 
+  // Assign Driver Modal
+  const [assignDriverModalOpen, setAssignDriverModalOpen] = useState(false);
+  const [selectedBookingForDriver, setSelectedBookingForDriver] = useState(null);
+
+  // Pass & Invoice Modal
+  const [passInvoiceModalOpen, setPassInvoiceModalOpen] = useState(false);
+  const [selectedBookingForPass, setSelectedBookingForPass] = useState(null);
+
   // Uploading state
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // Sound Notification Alert state (for incoming new bookings)
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Browser Web Audio API Chime Synthesizer
+  // Browser Web Audio API Multi-Tone Chime Synthesizer
   const playChime = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -194,38 +204,48 @@ export default function OwnerDashboard({
       const ctx = new AudioCtx();
       const now = ctx.currentTime;
 
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(587.33, now);
-      gain1.gain.setValueAtTime(0.35, now);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-      osc1.start(now);
-      osc1.stop(now + 0.35);
-
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(880, now + 0.14);
-      gain2.gain.setValueAtTime(0.45, now + 0.14);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.14);
-      osc2.stop(now + 0.7);
+      // 3-tone harmonic chime
+      const tones = [523.25, 659.25, 1046.5]; // C5, E5, C6
+      tones.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.4, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.12);
+        osc.stop(now + idx * 0.12 + 0.6);
+      });
     } catch (e) {
       console.warn('Audio chime error:', e);
     }
   };
 
-  // Car Form state
+  const triggerNewBookingAlert = () => {
+    playChime();
+    let count = 0;
+    const originalTitle = document.title;
+    const interval = setInterval(() => {
+      document.title = count % 2 === 0 ? '🔔 (1) NEW RIDE BOOKING!' : originalTitle;
+      count++;
+      if (count > 12) {
+        clearInterval(interval);
+        document.title = originalTitle;
+      }
+    }, 700);
+  };
+
+  // Car Form state with Wedding, Party, and Hourly Waiting rates
   const initialCarForm = {
     name: '',
     brand: 'Standard',
     model: '2024',
     perKm: '',
+    perHour: '',
+    weddingRate: '',
+    partyRate: '',
     locationAddress: '',
     locationCoords: null,
     fuelIncluded: true,
@@ -322,6 +342,9 @@ export default function OwnerDashboard({
       brand: car.brand || 'Standard',
       model: car.model || '2024',
       perKm: car.pricing?.perKm ?? car.pricing?.extraKmRate ?? '',
+      perHour: car.pricing?.perHour ?? '',
+      weddingRate: car.pricing?.weddingRate ?? '',
+      partyRate: car.pricing?.partyRate ?? '',
       locationAddress: car.location?.address || car.location?.city || '',
       locationCoords:
         Array.isArray(car.location?.coordinates) && car.location.coordinates.length >= 2
@@ -380,6 +403,9 @@ export default function OwnerDashboard({
           extraKmRate: perKm,
           perDay: perKm * 100,
           basePrice: perKm,
+          perHour: Number(carForm.perHour) || 150,
+          weddingRate: Number(carForm.weddingRate) || 0,
+          partyRate: Number(carForm.partyRate) || 0,
         },
         lng: coordinates[0],
         lat: coordinates[1],
@@ -556,6 +582,15 @@ export default function OwnerDashboard({
     if (!otpInput.trim()) {
       showToast(t('Please enter 4-digit customer OTP', 'कृपया ग्राहक का 4 अंकों का OTP डालें'), 'error');
       return;
+    }
+
+    if (selectedBookingForOtp?.startDate) {
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      const rideDayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(selectedBookingForOtp.startDate));
+      if (todayStr !== rideDayStr) {
+        showToast(t('Ride can only be started on the scheduled date!', 'राइड केवल तय तारीख पर ही शुरू की जा सकती है!'), 'error');
+        return;
+      }
     }
 
     try {
@@ -1152,19 +1187,71 @@ export default function OwnerDashboard({
                           </>
                         )}
 
-                        {b.status === 'confirmed' && (
+                        {/* Assign Driver Button (Visible on confirmed or in_progress bookings) */}
+                        {(b.status === 'confirmed' || b.status === 'in_progress') && (
                           <button
+                            type="button"
                             onClick={() => {
-                              setSelectedBookingForOtp(b);
-                              setOtpInput('');
-                              setOtpModalOpen(true);
+                              setSelectedBookingForDriver(b);
+                              setAssignDriverModalOpen(true);
                             }}
-                            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xl flex items-center gap-2 transition transform active:scale-95"
+                            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm rounded-xl border border-slate-700 flex items-center gap-1.5 transition"
                           >
-                            <Key className="w-4 h-4" />
-                            <span>🔑 {t('Start Ride (Enter OTP)', 'राइड शुरू करें (OTP डालें)')}</span>
+                            <span>👨‍✈️ {b.chauffeur?.name ? t('Driver Assigned', 'ड्राइवर बदलें') : t('Assign Driver', 'ड्राइवर जोड़ें')}</span>
                           </button>
                         )}
+
+                        {/* Pass & Invoice Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedBookingForPass(b);
+                            setPassInvoiceModalOpen(true);
+                          }}
+                          className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 flex items-center gap-1.5 transition"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>📄 {t('Pass & Invoice', 'पास व बिल')}</span>
+                        </button>
+
+                        {/* Direct Chat with Customer */}
+                        {onOpenChat && b.customer && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenChat(b.customer)}
+                            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm rounded-xl border border-slate-700 flex items-center gap-1.5 transition"
+                            title={t('Chat with Customer', 'ग्राहक से चैट करें')}
+                          >
+                            <MessageSquare className="w-4 h-4 text-emerald-400" />
+                            <span>{t('Chat Customer', 'ग्राहक से चैट')}</span>
+                          </button>
+                        )}
+
+                        {/* Start Ride with same-day OTP verification check */}
+                        {b.status === 'confirmed' && (() => {
+                          const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+                          const rideDayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(b.startDate));
+                          const isToday = todayStr === rideDayStr;
+
+                          return isToday ? (
+                            <button
+                              onClick={() => {
+                                setSelectedBookingForOtp(b);
+                                setOtpInput('');
+                                setOtpModalOpen(true);
+                              }}
+                              className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xl flex items-center gap-2 transition transform active:scale-95 animate-pulse"
+                            >
+                              <Key className="w-4 h-4" />
+                              <span>🔑 {t('Start Ride (Enter OTP)', 'राइड शुरू करें (OTP डालें)')}</span>
+                            </button>
+                          ) : (
+                            <div className="px-3.5 py-2 bg-slate-800/90 border border-slate-700 rounded-xl text-slate-400 text-xs font-bold flex items-center gap-1.5">
+                              <span>🔒</span>
+                              <span>{t(`OTP starts on ${new Date(b.startDate).toLocaleDateString()}`, `राइड के दिन (${new Date(b.startDate).toLocaleDateString()}) OTP भरें`)}</span>
+                            </div>
+                          );
+                        })()}
 
                         {b.status === 'in_progress' && (
                           <button
@@ -1680,6 +1767,58 @@ export default function OwnerDashboard({
                 </div>
               </div>
 
+              {/* Specialized Event & Hourly Rates */}
+              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-700/80 space-y-2.5">
+                <label className="text-amber-400 block text-xs font-black uppercase tracking-wider flex items-center justify-between">
+                  <span>💰 {t('Event & Hourly Standby Pricing', 'इवेंट व घंटे के अनुसार रेट सेटिंग')}</span>
+                  <span className="text-[10px] text-slate-400 font-normal lowercase">{t('optional add-ons', 'वैकल्पिक')}</span>
+                </label>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px]">
+                      {t('Hourly Standby (₹/hr)', 'घंटे का चार्ज (₹/hr)')}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={carForm.perHour}
+                      onChange={(e) => setCarForm({ ...carForm, perHour: e.target.value })}
+                      placeholder="150"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px]">
+                      {t('Wedding Rate (+₹)', 'शादी रेट (+₹)')}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={carForm.weddingRate}
+                      onChange={(e) => setCarForm({ ...carForm, weddingRate: e.target.value })}
+                      placeholder="500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px]">
+                      {t('Party Rate (+₹)', 'पार्टी रेट (+₹)')}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={carForm.partyRate}
+                      onChange={(e) => setCarForm({ ...carForm, partyRate: e.target.value })}
+                      placeholder="300"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-2">
                 <label className="text-slate-200 block text-xs font-black">
                   ⛽ {t('Fuel Option:', 'तेल की शर्त:')}
@@ -2008,6 +2147,27 @@ export default function OwnerDashboard({
             </form>
           </div>
         </div>
+      )}
+
+      {/* MODAL 5: ASSIGN DRIVER MODAL */}
+      {assignDriverModalOpen && selectedBookingForDriver && (
+        <AssignDriverModal
+          isOpen={assignDriverModalOpen}
+          onClose={() => setAssignDriverModalOpen(false)}
+          booking={selectedBookingForDriver}
+          onSuccess={() => {
+            fetchDashboardData();
+          }}
+        />
+      )}
+
+      {/* MODAL 6: DIGITAL PASS & PROFESSIONAL INVOICE MODAL */}
+      {passInvoiceModalOpen && selectedBookingForPass && (
+        <TripPassInvoiceModal
+          isOpen={passInvoiceModalOpen}
+          onClose={() => setPassInvoiceModalOpen(false)}
+          booking={selectedBookingForPass}
+        />
       )}
     </div>
   );

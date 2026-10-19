@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import { useLanguage } from '../context/LanguageContext';
+import TripPassInvoiceModal from '../components/booking/TripPassInvoiceModal';
 
 export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, onLogout, initialTab }) {
   const { user, token } = useAuth();
@@ -414,49 +415,85 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
 
                       {/* Assigned Chauffeur & Vehicle details */}
                       {b.chauffeur?.name ? (
-                        <div className="mt-3 p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs flex items-center justify-between">
+                        <div className="mt-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <span className="text-[10px] font-bold uppercase text-slate-500 block">Assigned Chauffeur</span>
-                            <span className="font-extrabold text-slate-900">{b.chauffeur.name}</span>
-                            <span className="font-mono text-slate-600 ml-1.5">({b.chauffeur.vehiclePlate || 'Car Plate Ready'})</span>
+                            <span className="text-[10px] font-bold uppercase text-slate-500 block">Assigned Chauffeur / Driver</span>
+                            <span className="font-extrabold text-slate-900 text-sm">{b.chauffeur.name}</span>
+                            <span className="font-mono text-slate-600 ml-1.5 font-bold">({b.chauffeur.vehiclePlate || 'Vehicle Ready'})</span>
                           </div>
                           {b.chauffeur.phone && (
-                            <a
-                              href={`tel:${b.chauffeur.phone}`}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px] flex items-center gap-1 hover:bg-emerald-700 transition"
-                            >
-                              <Phone className="w-3 h-3" /> Call
-                            </a>
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={`tel:${b.chauffeur.phone}`}
+                                className="px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-[11px] flex items-center gap-1 hover:bg-emerald-700 transition shadow-sm"
+                              >
+                                <Phone className="w-3 h-3" /> Call
+                              </a>
+                              <a
+                                href={`https://wa.me/91${b.chauffeur.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hello ${b.chauffeur.name}, I am your passenger for booking #${b.bookingId}`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1 hover:bg-emerald-200 transition"
+                              >
+                                💬 WhatsApp
+                              </a>
+                            </div>
                           )}
                         </div>
                       ) : (
                         <div className="mt-2 text-[11px] text-slate-400 italic">
-                          Uniformed chauffeur will be assigned 2 hours before reporting time.
+                          Uniformed chauffeur will be assigned by owner before reporting time.
                         </div>
                       )}
 
-                      {/* Start Ride OTP Box */}
-                      {b.startOtp && b.status !== 'cancelled' && b.status !== 'rejected' && (
-                        <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300 rounded-2xl flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block flex items-center gap-1">
-                              <Key className="w-3 h-3 text-amber-600" /> Ride Verification OTP
-                            </span>
-                            <span className="font-mono text-2xl font-black text-amber-950 tracking-widest">
-                              {b.startOtp}
+                      {/* Same-day Ride Verification OTP Box */}
+                      {b.startOtp && b.status !== 'cancelled' && b.status !== 'rejected' && (() => {
+                        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+                        const rideDayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(b.startDate));
+                        const isToday = todayStr === rideDayStr;
+
+                        return isToday ? (
+                          <div className="mt-3 p-3 bg-gradient-to-r from-emerald-50 to-emerald-100/70 border-2 border-emerald-400 rounded-2xl flex items-center justify-between shadow-sm">
+                            <div>
+                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 block flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <Key className="w-3.5 h-3.5 text-emerald-700" /> Active Ride OTP (Today)
+                              </span>
+                              <span className="font-mono text-3xl font-black text-emerald-950 tracking-widest">
+                                {b.startOtp}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-bold text-emerald-800 max-w-[170px] text-right">
+                              Share this OTP with your chauffeur today to verify and begin your trip.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-slate-600">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs">
+                                🔒
+                              </div>
+                              <div>
+                                <span className="text-xs font-black text-slate-800 block">
+                                  OTP Unlocks on Ride Day ({new Date(b.startDate).toLocaleDateString()})
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Same-day security OTP verification unlocks strictly on scheduled date.
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] uppercase font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full shrink-0">
+                              Locked
                             </span>
                           </div>
-                          <div className="text-[10px] font-semibold text-amber-800 max-w-[170px] text-right">
-                            Share this OTP with your driver on ride day for verification.
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     {/* Action buttons */}
                     <div className="pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
                       <div className="flex items-center gap-2">
-                        {/* VIP Event Pass Button */}
+                        {/* VIP Event Pass & Professional Invoice Button */}
                         <button
                           type="button"
                           onClick={() => {
@@ -465,7 +502,7 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
                           }}
                           className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 flex items-center gap-1.5 shadow-sm transition"
                         >
-                          <QrCode className="w-3.5 h-3.5" /> VIP Pass
+                          <QrCode className="w-3.5 h-3.5" /> 📄 Pass &amp; Invoice
                         </button>
 
                         {/* WhatsApp Share Button */}
@@ -480,22 +517,14 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <a
-                          href={`/api/bookings/${b._id}/invoice`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 transition"
-                        >
-                          <Download className="w-3 h-3" /> PDF
-                        </a>
-
                         {onOpenChat && b.owner && (
                           <button
                             onClick={() => onOpenChat(b.owner)}
-                            className="p-1.5 rounded-xl text-slate-700 bg-slate-100 hover:bg-slate-200"
+                            className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 transition shadow-sm"
                             title="Chat with Owner"
                           >
-                            <MessageSquare className="w-3.5 h-3.5" />
+                            <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Chat Owner</span>
                           </button>
                         )}
 
@@ -864,8 +893,16 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
           </div>
         )}
 
-        {/* VIP Event Pass Modal */}
+        {/* VIP Event Pass & Professional 1-Click PDF Invoice Modal */}
         {passModalOpen && selectedBookingForPass && (
+          <TripPassInvoiceModal
+            isOpen={passModalOpen}
+            onClose={() => setPassModalOpen(false)}
+            booking={selectedBookingForPass}
+          />
+        )}
+
+        {false && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-sm overflow-y-auto animate-fade-in print:p-0 print:bg-white">
             <div className="bg-white rounded-3xl max-w-2xl w-full my-auto overflow-hidden shadow-2xl border-2 border-amber-400 print:border-none print:shadow-none print:max-w-none">
               {/* Pass Header Banner */}

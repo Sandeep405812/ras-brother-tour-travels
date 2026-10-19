@@ -16,8 +16,12 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['booking', 'offer', 'payment', 'chat', 'review', 'system'],
+    enum: ['booking', 'offer', 'payment', 'chat', 'review', 'system', 'query'],
     default: 'booking',
+  },
+  data: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
   },
   link: {
     type: String,
@@ -34,5 +38,6 @@ const notificationSchema = new mongoose.Schema({
 });
 
 notificationSchema.index({ user: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ type: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

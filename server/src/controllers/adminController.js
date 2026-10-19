@@ -32,6 +32,8 @@ exports.getAdminStats = async (req, res, next) => {
 
     const recentUsers = await User.find().sort({ createdAt: -1 }).limit(6);
 
+    const recentQueries = await Notification.find({ type: 'query' }).sort({ createdAt: -1 }).limit(25);
+
     res.json({
       success: true,
       stats: {
@@ -42,10 +44,11 @@ exports.getAdminStats = async (req, res, next) => {
         totalRevenue,
         commission: estimatedCommission,
         pendingKYC,
-        complaints: 0,
+        complaints: recentQueries.length,
       },
       recentBookings,
       recentUsers,
+      recentQueries,
     });
   } catch (error) {
     next(error);

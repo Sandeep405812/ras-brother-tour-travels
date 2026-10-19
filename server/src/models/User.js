@@ -70,6 +70,7 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.index({ location: '2dsphere' });
+userSchema.index({ role: 1, createdAt: -1 });
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();

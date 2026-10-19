@@ -158,6 +158,16 @@ const carSchema = new mongoose.Schema({
       default: 2000,
     },
 
+    weddingRate: {
+      type: Number,
+      default: 0,
+    },
+
+    partyRate: {
+      type: Number,
+      default: 0,
+    },
+
     extraKmRate: {
       type: Number,
       min: [0.01, 'Extra kilometer rate must be greater than 0'],
@@ -317,15 +327,23 @@ const carSchema = new mongoose.Schema({
 });
 
 // ============================================================
-// GEO INDEX
+// GEO & SPEED INDEXES (Fast Geospatial & Filter Execution)
 // ============================================================
 carSchema.index({
   location: '2dsphere',
 });
 
-// ============================================================
-// CATEGORY + AVAILABILITY INDEX
-// ============================================================
+carSchema.index({
+  owner: 1,
+  active: 1,
+});
+
+carSchema.index({
+  isAvailable: 1,
+  active: 1,
+  createdAt: -1,
+});
+
 carSchema.index({
   category: 1,
   isAvailable: 1,

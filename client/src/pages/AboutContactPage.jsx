@@ -25,20 +25,43 @@ export default function AboutContactPage({ mode = 'contact', onNavigate }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.name || !form.phone || !form.message) {
+      showToast(t('Please fill all required fields', 'कृपया सभी आवश्यक फ़ील्ड भरें'), 'error');
+      return;
+    }
     setSubmitting(true);
-    setTimeout(() => {
-      showToast(
-        t(
-          'Thank you! Our 24/7 concierge desk has received your request and will contact you within 15 minutes.',
-          'धन्यवाद! हमारे 24/7 सहायता केंद्र को आपका संदेश मिल गया है। हम 15 मिनट के अंदर आपसे संपर्क करेंगे।'
-        ),
-        'success'
-      );
-      setForm({ name: '', email: '', phone: '', message: '' });
+    try {
+      const res = await fetch('/api/bookings/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          message: form.message.trim(),
+          carName: '24/7 Concierge Support / Helpdesk',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          t(
+            'Your query has been sent to Admin! Our team will call you within 15 minutes.',
+            'आपकी समस्या/पूछताछ एडमिन को भेज दी गई है! हमारी टीम 15 मिनट में आपसे संपर्क करेगी।'
+          ),
+          'success'
+        );
+        setForm({ name: '', email: '', phone: '', message: '' });
+      } else {
+        showToast(data.message || 'Failed to submit query', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error submitting query', 'error');
+    } finally {
       setSubmitting(false);
-    }, 500);
+    }
   };
 
   const handleOpenWhatsApp = () => {

@@ -35,6 +35,7 @@ import {
   Shield,
   FileJson,
   UserCheck,
+  Headphones,
 } from 'lucide-react';
 
 export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
@@ -887,16 +888,105 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
               <div className="text-[11px] text-slate-400 mt-1">Active in marketplace</div>
             </div>
 
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-              <div className="text-xs font-bold text-slate-500 uppercase">Gross Platform Volume</div>
-              <div className="text-3xl font-black text-emerald-600 font-heading mt-1">
-                ₹{stats?.totalRevenue?.toLocaleString('en-IN') || 0}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+                <div className="text-xs font-bold text-slate-500 uppercase">Gross Platform Volume</div>
+                <div className="text-3xl font-black text-emerald-600 font-heading mt-1">
+                  ₹{stats?.totalRevenue?.toLocaleString('en-IN') || 0}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                  Est. Commission: ₹{stats?.commission?.toLocaleString('en-IN') || 0}
+                </div>
               </div>
-              <div className="text-[11px] text-emerald-700 font-semibold mt-1">
-                Est. Commission: ₹{stats?.commission?.toLocaleString('en-IN') || 0}
+
+              {/* 24/7 Concierge Queries & Customer Helpdesk Inquiries */}
+              <div className="col-span-1 sm:col-span-2 lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                      <Headphones className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900 font-heading flex items-center gap-2">
+                        <span>24*7 Helpdesk Inquiries &amp; Customer Queries</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">
+                          {stats?.recentQueries?.length || 0}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500">Live inquiries, emergency support requests, and booking assistance alerts.</p>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Instant Admin Alert Active</span>
+                  </div>
+                </div>
+
+                {!stats?.recentQueries || stats.recentQueries.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">
+                    No pending inquiries or problems raised. All clear!
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {stats.recentQueries.map((q) => {
+                      const phone = q.data?.phone || '';
+                      const cleanPhone = phone.replace(/\D/g, '');
+                      const waPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
+
+                      return (
+                        <div key={q._id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 rounded-2xl p-2 transition">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-sm text-slate-900">
+                                {q.data?.name || q.title || 'Customer Inquiry'}
+                              </span>
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                {q.data?.eventType || 'General Query'}
+                              </span>
+                              <span className="text-[11px] text-slate-400">
+                                {new Date(q.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-600 line-clamp-2">
+                              {q.message || q.data?.message}
+                            </p>
+
+                            {phone && (
+                              <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
+                                <span>📞 {phone}</span>
+                                {q.data?.email && <span>• ✉️ {q.data.email}</span>}
+                              </div>
+                            )}
+                          </div>
+
+                          {phone && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={`tel:${phone}`}
+                                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+                              >
+                                <Phone className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Call Customer</span>
+                              </a>
+
+                              <a
+                                href={`https://wa.me/${waPhone}?text=${encodeURIComponent(`Hello ${q.data?.name || 'Customer'}, regarding your query on RAS Brother Tour & Travels:`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+                              >
+                                <span>💬 WhatsApp</span>
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
         )}
 
         {/* Tab: Customers Directory */}
