@@ -113,10 +113,9 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
       return [
         { label: t('Home', 'होम'), page: 'home', icon: Home },
         { label: t('Cars Fleet', 'लग्जरी गाड़ियाँ'), page: 'cars', icon: Car, badge: cartCount > 0 ? cartCount : null },
-        { label: t('Services & Packages', 'टूर व इवेंट पैकेज'), page: 'services', icon: Sparkles },
-        { label: t('How It Works', 'यह कैसे काम करता है'), page: 'how-it-works', icon: ShieldCheck },
-        { label: t('Become a Partner', 'फ्लीट पार्टनर बनें'), page: 'partner', icon: Users },
-        { label: t('About Us', 'हमारे बारे में'), page: 'about', icon: Info },
+        { label: t('Services', 'सेवाएं'), page: 'services', icon: Sparkles },
+        { label: t('How It Works', 'प्रक्रिया'), page: 'how-it-works', icon: ShieldCheck },
+        { label: t('Partner', 'पार्टनर बनें'), page: 'partner', icon: Users, hideOnSmallDesktop: true },
         { label: t('Contact 24/7', 'संपर्क 24/7'), page: 'contact', icon: PhoneCall },
       ];
     }
@@ -320,19 +319,19 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
       {/* 1A. GUEST TOP NAVBAR (Visible on screens >= 1024px when NOT logged in) */}
       {/* =================================================================== */}
       {!isAuthenticated && (
-        <header className="hidden lg:block sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/90 shadow-xl select-none">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <header className="hidden lg:block sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/90 shadow-xl select-none w-full max-w-full overflow-x-hidden">
+          <div className="w-full max-w-7xl mx-auto px-3 sm:px-5 lg:px-6 h-18 sm:h-20 flex items-center justify-between gap-2 xl:gap-3">
             {/* Left: Brand Logo */}
             <div
               onClick={() => handleLinkClick('home')}
               className="cursor-pointer group flex items-center transition-transform hover:scale-[1.02] shrink-0"
               title="RAS Brother Tour & Travels"
             >
-              <RasLogo variant="dark" size="sm" showTagline={true} />
+              <RasLogo variant="dark" size="sm" showTagline={false} />
             </div>
 
             {/* Center: Top Navigation Links */}
-            <nav className="flex items-center gap-1 xl:gap-2">
+            <nav className="flex items-center gap-1 xl:gap-1.5 shrink min-w-0">
               {navLinks.map((link, idx) => {
                 const Icon = link.icon;
                 const active = isLinkActive(link);
@@ -341,16 +340,18 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
                   <button
                     key={`top-nav-${link.page}-${idx}`}
                     onClick={() => handleLinkClick(link.page, link.params || {})}
-                    className={`flex items-center gap-2 px-3 xl:px-3.5 py-2 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 xl:py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shrink-0 ${
+                      link.hideOnSmallDesktop ? 'hidden xl:flex' : ''
+                    } ${
                       active
                         ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent text-amber-400 border border-amber-500/40 shadow-sm font-black'
                         : 'text-slate-300 hover:text-white hover:bg-slate-900 border border-transparent'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400'}`} />
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400'}`} />
                     <span className="whitespace-nowrap">{link.label}</span>
                     {link.badge && (
-                      <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full ml-1">
+                      <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full ml-0.5">
                         {link.badge}
                       </span>
                     )}
@@ -360,10 +361,10 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
             </nav>
 
             {/* Right: 24/7 Helpline, Language Toggle, Login & Register */}
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <a
                 href="tel:+919450909581"
-                className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 hover:border-amber-500/30 transition text-xs font-bold shadow-sm"
+                className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 hover:border-amber-500/30 transition text-xs font-bold shadow-sm"
                 title="24/7 Helpline"
               >
                 <span className="relative flex h-2 w-2">
@@ -379,7 +380,7 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
               <button
                 type="button"
                 onClick={() => handleLinkClick('login')}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-200 bg-slate-900 hover:bg-slate-800 hover:text-white border border-slate-700 transition cursor-pointer shadow-sm"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-200 bg-slate-900 hover:bg-slate-800 hover:text-white border border-slate-700 transition cursor-pointer shadow-sm shrink-0"
               >
                 {t('Login', 'लॉगिन')}
               </button>
@@ -387,7 +388,7 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
               <button
                 type="button"
                 onClick={() => handleLinkClick('register')}
-                className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                className="px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
               >
                 {t('Register', 'रजिस्टर')}
               </button>
@@ -607,7 +608,7 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
       {/* =================================================================== */}
       {/* 2. MOBILE TOP BAR (Visible on screens < 1024px)                     */}
       {/* =================================================================== */}
-      <header className="lg:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-3.5 py-2.5 flex items-center justify-between shadow-lg">
+      <header className="lg:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-3.5 py-2.5 flex items-center justify-between shadow-lg w-full max-w-full overflow-x-hidden">
         {/* Left: Hamburger Button that opens Left Drawer */}
         <div className="flex items-center gap-2">
           <button
@@ -816,7 +817,7 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
       {/* =================================================================== */}
       {/* 4. MOBILE BOTTOM NAVIGATION DOCK (Role-tailored quick buttons)       */}
       {/* =================================================================== */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 py-1.5 px-2 flex items-center justify-around shadow-2xl select-none">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 py-1.5 px-2 flex items-center justify-around shadow-2xl select-none w-full max-w-full overflow-x-hidden">
         {/* Role 1: Customer */}
         {isAuthenticated && role === 'customer' && (
           <>

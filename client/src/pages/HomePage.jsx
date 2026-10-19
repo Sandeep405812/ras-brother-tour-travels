@@ -208,9 +208,9 @@ export default function HomePage({
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 w-full max-w-full overflow-x-hidden">
       {/* Clean Hero & Route Search Bar */}
-      <section className="bg-slate-950 text-white pt-8 pb-12 sm:pt-12 sm:pb-16 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
+      <section className="bg-slate-950 text-white pt-8 pb-12 sm:pt-12 sm:pb-16 px-4 sm:px-6 lg:px-8 border-b border-slate-800 w-full max-w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
           {/* Header Title */}
           <div className="text-center max-w-3xl mx-auto mb-8">

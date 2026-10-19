@@ -302,16 +302,16 @@ function MainLayout() {
   const isAuthPage = currentPage === 'login' || currentPage === 'register';
 
   return (
-    <div className={`min-h-screen flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:flex-row' : ''} bg-slate-50 selection:bg-amber-500 selection:text-white font-sans`}>
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:flex-row' : ''} bg-slate-50 selection:bg-amber-500 selection:text-white font-sans`}>
       {/* Universal Navigation: Top Navbar for Guests, Left Sidebar for Authenticated Users, None for Auth pages */}
       {!isAuthPage && (
         <Navbar onNavigate={navigateTo} currentPage={currentPage} pageParams={pageParams} />
       )}
 
       {/* Main Content Area */}
-      <div className={`flex-1 min-w-0 flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:pl-64 xl:pl-72' : ''} ${!isAuthPage ? 'pb-16 lg:pb-0' : ''}`}>
+      <div className={`flex-1 min-w-0 w-full max-w-full overflow-x-hidden flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:pl-64 xl:pl-72' : ''} ${!isAuthPage ? 'pb-16 lg:pb-0' : ''}`}>
         {/* Main Content Router */}
-        <main className="flex-1">
+        <main className="flex-1 w-full max-w-full overflow-x-hidden">
         {currentPage === 'home' && (
           <HomePage
             onNavigate={navigateTo}
