@@ -317,156 +317,234 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
   return (
     <>
       {/* =================================================================== */}
-      {/* 1. DESKTOP LEFT SIDEBAR (Visible on screens >= 1024px)              */}
+      {/* 1A. GUEST TOP NAVBAR (Visible on screens >= 1024px when NOT logged in) */}
       {/* =================================================================== */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 xl:w-72 bg-slate-950 border-r border-slate-800/90 z-40 flex-col justify-between shadow-2xl select-none">
-        {/* Top: Brand Logo & Role Pill */}
-        <div className="p-4 xl:p-5 border-b border-slate-800/80 space-y-2.5">
-          <div
-            onClick={() => handleLinkClick(isAuthenticated ? getDashboardPage() : 'home')}
-            className="cursor-pointer group flex items-center transition-transform hover:scale-[1.02]"
-            title="RAS Brother Tour & Travels"
-          >
-            <RasLogo variant="dark" size="sm" showTagline={true} />
-          </div>
-
-          {/* Role Status Tag */}
-          <div className="flex items-center gap-2 pt-1">
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-wider uppercase border ${
-                role === 'admin'
-                  ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                  : role === 'owner'
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                  : role === 'customer'
-                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}
+      {!isAuthenticated && (
+        <header className="hidden lg:block sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/90 shadow-xl select-none">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+            {/* Left: Brand Logo */}
+            <div
+              onClick={() => handleLinkClick('home')}
+              className="cursor-pointer group flex items-center transition-transform hover:scale-[1.02] shrink-0"
+              title="RAS Brother Tour & Travels"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {isAuthenticated ? `${role} Portal` : t('Guest Visitor', 'अतिथि')}
-            </span>
-          </div>
-        </div>
+              <RasLogo variant="dark" size="sm" showTagline={true} />
+            </div>
 
-        {/* Middle: Role Navigation Items */}
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 mb-2 flex items-center justify-between">
-            <span>{getMenuHeading()}</span>
-            {isAuthenticated && (
-              <span className="text-[9px] text-amber-500 font-bold">● Active</span>
-            )}
-          </div>
+            {/* Center: Top Navigation Links */}
+            <nav className="flex items-center gap-1 xl:gap-2">
+              {navLinks.map((link, idx) => {
+                const Icon = link.icon;
+                const active = isLinkActive(link);
 
-          {navLinks.map((link, idx) => {
-            const Icon = link.icon;
-            const active = isLinkActive(link);
-            const isTopDashboard = link.isHighlight;
-
-            return (
-              <button
-                key={`${link.page}-${link.params?.tab || idx}`}
-                onClick={() => handleLinkClick(link.page, link.params || {})}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 group text-left ${
-                  isTopDashboard
-                    ? active
-                      ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 border border-amber-300 shadow-lg shadow-amber-500/20 font-black'
-                      : 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent text-amber-300 hover:text-white hover:from-amber-500/30 border border-amber-500/40 shadow-sm'
-                    : active
-                    ? 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 text-amber-400 border border-amber-500/40 shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-900 border border-transparent'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`p-1.5 rounded-xl transition shrink-0 ${
-                      isTopDashboard
-                        ? active
-                          ? 'bg-slate-950 text-amber-400'
-                          : 'bg-amber-500 text-slate-950 font-black'
-                        : active
-                        ? 'bg-amber-500 text-slate-950 font-black'
-                        : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                return (
+                  <button
+                    key={`top-nav-${link.page}-${idx}`}
+                    onClick={() => handleLinkClick(link.page, link.params || {})}
+                    className={`flex items-center gap-2 px-3 xl:px-3.5 py-2 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      active
+                        ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent text-amber-400 border border-amber-500/40 shadow-sm font-black'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-900 border border-transparent'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <span className="truncate">{link.label}</span>
-                </div>
+                    <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400'}`} />
+                    <span className="whitespace-nowrap">{link.label}</span>
+                    {link.badge && (
+                      <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full ml-1">
+                        {link.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
 
-                <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                  {link.badgeText && (
-                    <span
-                      className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                        active && isTopDashboard
-                          ? 'bg-slate-950 text-amber-400'
-                          : 'bg-amber-500/30 text-amber-300'
-                      }`}
-                    >
-                      {link.badgeText}
-                    </span>
-                  )}
-                  {link.badge && (
-                    <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
-                      {link.badge}
-                    </span>
-                  )}
-                  {active && !link.badge && !link.badgeText && (
-                    <ChevronRight className="w-3.5 h-3.5 text-amber-400 opacity-90" />
-                  )}
-                </div>
-              </button>
-            );
-          })}
-
-          {/* Quick Action Button for Customer / Guest */}
-          {(!isAuthenticated || role === 'customer') && (
-            <div className="pt-3 px-1">
-              <button
-                onClick={() => handleLinkClick('cars')}
-                className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition transform hover:-translate-y-0.5 active:translate-y-0"
+            {/* Right: 24/7 Helpline, Language Toggle, Login & Register */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              <a
+                href="tel:+919450909581"
+                className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 hover:border-amber-500/30 transition text-xs font-bold shadow-sm"
+                title="24/7 Helpline"
               >
-                <Zap className="w-4 h-4 fill-slate-950" />
-                <span>{t('⚡ Find & Book Cars', '⚡ गाड़ियाँ खोजें व बुक करें')}</span>
-              </button>
-            </div>
-          )}
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <Phone className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] font-mono tracking-tight">+91 94509 09581</span>
+              </a>
 
-          {/* Quick Action Button for Owner */}
-          {isAuthenticated && role === 'owner' && (
-            <div className="pt-3 px-1">
-              <button
-                onClick={() => handleLinkClick('owner-dashboard', { tab: 'add-car' })}
-                className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>{t('➕ Add Vehicle to Fleet', '➕ नई गाड़ी जोड़ें')}</span>
-              </button>
-            </div>
-          )}
-        </div>
+              <LanguageToggle variant="dark" />
 
-        {/* Bottom Section: Language, PWA, User Info / Logout */}
-        <div className="p-3.5 xl:p-4 border-t border-slate-800/80 bg-slate-950/90 space-y-3">
-          {/* Language Switcher & Install Pill */}
-          <div className="flex items-center justify-between gap-2">
-            <LanguageToggle variant="dark" />
-
-            {showInstallBtn && (
               <button
                 type="button"
-                onClick={handleInstallPwa}
-                className="px-2.5 py-1.5 rounded-xl text-[11px] font-black bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950 transition flex items-center gap-1 shadow-sm"
-                title="Install App"
+                onClick={() => handleLinkClick('login')}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-200 bg-slate-900 hover:bg-slate-800 hover:text-white border border-slate-700 transition cursor-pointer shadow-sm"
               >
-                <Smartphone className="w-3 h-3" />
-                <span>{t('App', 'ऐप')}</span>
+                {t('Login', 'लॉगिन')}
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleLinkClick('register')}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                {t('Register', 'रजिस्टर')}
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* =================================================================== */}
+      {/* 1B. AUTHENTICATED LEFT SIDEBAR (Desktop screens >= 1024px when LOGGED IN) */}
+      {/* =================================================================== */}
+      {isAuthenticated && (
+        <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 xl:w-72 bg-slate-950 border-r border-slate-800/90 z-40 flex-col justify-between shadow-2xl select-none">
+          {/* Top: Brand Logo & Role Pill */}
+          <div className="p-4 xl:p-5 border-b border-slate-800/80 space-y-2.5">
+            <div
+              onClick={() => handleLinkClick(getDashboardPage())}
+              className="cursor-pointer group flex items-center transition-transform hover:scale-[1.02]"
+              title="RAS Brother Tour & Travels"
+            >
+              <RasLogo variant="dark" size="sm" showTagline={true} />
+            </div>
+
+            {/* Role Status Tag */}
+            <div className="flex items-center gap-2 pt-1">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-wider uppercase border ${
+                  role === 'admin'
+                    ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                    : role === 'owner'
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : role === 'customer'
+                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {`${role} Portal`}
+              </span>
+            </div>
+          </div>
+
+          {/* Middle: Role Navigation Items */}
+          <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 mb-2 flex items-center justify-between">
+              <span>{getMenuHeading()}</span>
+              <span className="text-[9px] text-amber-500 font-bold">● Active</span>
+            </div>
+
+            {navLinks.map((link, idx) => {
+              const Icon = link.icon;
+              const active = isLinkActive(link);
+              const isTopDashboard = link.isHighlight;
+
+              return (
+                <button
+                  key={`${link.page}-${link.params?.tab || idx}`}
+                  onClick={() => handleLinkClick(link.page, link.params || {})}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 group text-left cursor-pointer ${
+                    isTopDashboard
+                      ? active
+                        ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 border border-amber-300 shadow-lg shadow-amber-500/20 font-black'
+                        : 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent text-amber-300 hover:text-white hover:from-amber-500/30 border border-amber-500/40 shadow-sm'
+                      : active
+                      ? 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 text-amber-400 border border-amber-500/40 shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-900 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`p-1.5 rounded-xl transition shrink-0 ${
+                        isTopDashboard
+                          ? active
+                            ? 'bg-slate-950 text-amber-400'
+                            : 'bg-amber-500 text-slate-950 font-black'
+                          : active
+                          ? 'bg-amber-500 text-slate-950 font-black'
+                          : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className="truncate">{link.label}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                    {link.badgeText && (
+                      <span
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                          active && isTopDashboard
+                            ? 'bg-slate-950 text-amber-400'
+                            : 'bg-amber-500/30 text-amber-300'
+                        }`}
+                      >
+                        {link.badgeText}
+                      </span>
+                    )}
+                    {link.badge && (
+                      <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
+                        {link.badge}
+                      </span>
+                    )}
+                    {active && !link.badge && !link.badgeText && (
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-400 opacity-90" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+
+            {/* Quick Action Button for Customer */}
+            {role === 'customer' && (
+              <div className="pt-3 px-1">
+                <button
+                  onClick={() => handleLinkClick('cars')}
+                  className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 fill-slate-950" />
+                  <span>{t('⚡ Find & Book Cars', '⚡ गाड़ियाँ खोजें व बुक करें')}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Quick Action Button for Owner */}
+            {role === 'owner' && (
+              <div className="pt-3 px-1">
+                <button
+                  onClick={() => handleLinkClick('owner-dashboard', { tab: 'add-car' })}
+                  className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>{t('➕ Add Vehicle to Fleet', '➕ नई गाड़ी जोड़ें')}</span>
+                </button>
+              </div>
             )}
           </div>
 
-          {/* User Auth Card */}
-          {isAuthenticated ? (
+          {/* Bottom Section: Language, PWA, User Info / Logout */}
+          <div className="p-3.5 xl:p-4 border-t border-slate-800/80 bg-slate-950/90 space-y-3">
+            {/* Language Switcher & Install Pill */}
+            <div className="flex items-center justify-between gap-2">
+              <LanguageToggle variant="dark" />
+
+              {showInstallBtn && (
+                <button
+                  type="button"
+                  onClick={handleInstallPwa}
+                  className="px-2.5 py-1.5 rounded-xl text-[11px] font-black bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950 transition flex items-center gap-1 shadow-sm cursor-pointer"
+                  title="Install App"
+                >
+                  <Smartphone className="w-3 h-3" />
+                  <span>{t('App', 'ऐप')}</span>
+                </button>
+              )}
+            </div>
+
+            {/* User Auth Card */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div
@@ -493,11 +571,13 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
 
                 <button
                   type="button"
+                  id="desktop-logout-btn"
+                  aria-label="Logout"
                   onClick={() => {
                     logout();
                     handleLinkClick('home');
                   }}
-                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition"
+                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition cursor-pointer"
                   title={t('Logout', 'लॉगआउट')}
                 >
                   <LogOut className="w-4 h-4" />
@@ -507,37 +587,22 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
               <div className="grid grid-cols-2 gap-1.5 pt-1">
                 <button
                   onClick={() => handleLinkClick(getDashboardPage(), { tab: 'profile' })}
-                  className="py-1.5 px-2 rounded-xl text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition text-center flex items-center justify-center gap-1"
+                  className="py-1.5 px-2 rounded-xl text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition text-center flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <User className="w-3 h-3 text-amber-400" />
                   <span>{t('Profile', 'प्रोफाइल')}</span>
                 </button>
                 <button
                   onClick={() => handleLinkClick(getDashboardPage())}
-                  className="py-1.5 px-2 rounded-xl text-[10px] font-black bg-amber-500/15 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 transition text-center"
+                  className="py-1.5 px-2 rounded-xl text-[10px] font-black bg-amber-500/15 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 transition text-center cursor-pointer"
                 >
                   {t('Dashboard →', 'डैशबोर्ड →')}
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleLinkClick('login')}
-                className="w-full py-2 rounded-xl text-xs font-bold text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700 transition text-center"
-              >
-                {t('Login', 'लॉगिन')}
-              </button>
-              <button
-                onClick={() => handleLinkClick('register')}
-                className="w-full py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition text-center"
-              >
-                {t('Register', 'रजिस्टर')}
-              </button>
-            </div>
-          )}
-        </div>
-      </aside>
+          </div>
+        </aside>
+      )}
 
       {/* =================================================================== */}
       {/* 2. MOBILE TOP BAR (Visible on screens < 1024px)                     */}
@@ -563,8 +628,17 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
           </div>
         </div>
 
-        {/* Right: Language Toggle & Quick Auth / Dashboard */}
+        {/* Right: Phone Call, Language Toggle & Quick Auth / Dashboard */}
         <div className="flex items-center gap-1.5">
+          {!isAuthenticated && (
+            <a
+              href="tel:+919450909581"
+              className="p-1.5 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 hover:text-white transition shadow-sm flex items-center justify-center"
+              title="24/7 Helpline"
+            >
+              <Phone className="w-4 h-4" />
+            </a>
+          )}
           <LanguageToggle variant="dark" />
 
           {isAuthenticated ? (

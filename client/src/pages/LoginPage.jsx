@@ -3,10 +3,12 @@ import RasLogo from '../components/brand/RasLogo';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useLanguage } from '../context/LanguageContext';
+import LanguageToggle from '../components/common/LanguageToggle';
 import {
   Lock,
   Mail,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
   Key,
   X,
@@ -140,6 +142,21 @@ export default function LoginPage({ onNavigate }) {
       {/* Background Subtle Ambient Glows */}
       <div className="absolute top-1/4 -left-32 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-32 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Top Floating Navigation Controls */}
+      <div className="absolute top-4 sm:top-6 inset-x-4 sm:inset-x-8 flex items-center justify-between z-20 pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => onNavigate('home')}
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50 text-xs font-bold transition shadow-xl cursor-pointer group"
+          title="Return to Home"
+        >
+          <ArrowLeft className="w-4 h-4 text-amber-400 group-hover:-translate-x-0.5 transition-transform" />
+          <span>{t('Back to Home', 'होम पर वापस जाएं')}</span>
+        </button>
+
+        <LanguageToggle variant="dark" />
+      </div>
 
       {/* Centered Direct Login Card */}
       <div className="w-full max-w-md relative z-10 space-y-6">

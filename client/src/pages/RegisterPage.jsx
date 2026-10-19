@@ -3,6 +3,7 @@ import RasLogo from '../components/brand/RasLogo';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useLanguage } from '../context/LanguageContext';
+import LanguageToggle from '../components/common/LanguageToggle';
 import {
   Lock,
   Mail,
@@ -11,6 +12,7 @@ import {
   MapPin,
   Building,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
   Sparkles,
   Star,
@@ -98,16 +100,28 @@ export default function RegisterPage({ onNavigate }) {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/60" />
 
-            {/* Top Brand Logo */}
-            <div className="relative z-10">
+            {/* Top Brand Logo & Controls */}
+            <div className="relative z-10 flex items-center justify-between gap-3 flex-wrap">
               <button
                 type="button"
                 onClick={() => onNavigate('home')}
-                className="inline-block transform hover:scale-[1.02] transition"
+                className="inline-block transform hover:scale-[1.02] transition cursor-pointer"
                 title="Return to Home"
               >
                 <RasLogo variant="dark" size="md" showTagline={true} />
               </button>
+
+              <div className="flex items-center gap-2">
+                <LanguageToggle variant="dark" />
+                <button
+                  type="button"
+                  onClick={() => onNavigate('home')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition shadow cursor-pointer group"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-amber-400 group-hover:-translate-x-0.5 transition-transform" />
+                  <span>{t('Back', 'वापस')}</span>
+                </button>
+              </div>
             </div>
 
             {/* Center Value Proposition based on Selected Role */}

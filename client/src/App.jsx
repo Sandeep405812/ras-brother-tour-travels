@@ -299,13 +299,17 @@ function MainLayout() {
     'booking-confirmation',
   ];
 
+  const isAuthPage = currentPage === 'login' || currentPage === 'register';
+
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 selection:bg-amber-500 selection:text-white font-sans">
-      {/* Universal Left-Side Navigation (Desktop Sidebar + Mobile Left Drawer & Bottom Dock) */}
-      <Navbar onNavigate={navigateTo} currentPage={currentPage} pageParams={pageParams} />
+    <div className={`min-h-screen flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:flex-row' : ''} bg-slate-50 selection:bg-amber-500 selection:text-white font-sans`}>
+      {/* Universal Navigation: Top Navbar for Guests, Left Sidebar for Authenticated Users, None for Auth pages */}
+      {!isAuthPage && (
+        <Navbar onNavigate={navigateTo} currentPage={currentPage} pageParams={pageParams} />
+      )}
 
       {/* Main Content Area */}
-      <div className="flex-1 min-w-0 flex flex-col lg:pl-64 xl:pl-72 pb-16 lg:pb-0">
+      <div className={`flex-1 min-w-0 flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:pl-64 xl:pl-72' : ''} ${!isAuthPage ? 'pb-16 lg:pb-0' : ''}`}>
         {/* Main Content Router */}
         <main className="flex-1">
         {currentPage === 'home' && (
@@ -430,8 +434,8 @@ function MainLayout() {
         )}
         </main>
 
-        {/* Footer: Strictly displayed ONLY on the Home Page as requested */}
-        {currentPage === 'home' && (
+        {/* Footer: Strictly displayed ONLY on the Home Page and never on auth pages */}
+        {currentPage === 'home' && !isAuthPage && (
           <Footer onNavigate={navigateTo} />
         )}
       </div>
@@ -465,14 +469,19 @@ function MainLayout() {
       {/* Bulk Booking / Wedding Fleet Cart Modal */}
       <BulkBookingModal onNavigate={navigateTo} />
 
-      {/* Floating Wedding Fleet Cart Pill Button */}
-      <FloatingFleetCartButton />
+      {/* Floating Action Elements (Hidden on auth pages to maintain pure focus) */}
+      {!isAuthPage && (
+        <>
+          {/* Floating Wedding Fleet Cart Pill Button */}
+          <FloatingFleetCartButton />
 
-      {/* Floating PWA Install App Button on Mobile */}
-      <FloatingInstallAppButton />
+          {/* Floating PWA Install App Button on Mobile */}
+          <FloatingInstallAppButton />
 
-      {/* Floating WhatsApp Concierge Button */}
-      <FloatingWhatsAppButton />
+          {/* Floating WhatsApp Concierge Button */}
+          <FloatingWhatsAppButton />
+        </>
+      )}
     </div>
   );
 }
