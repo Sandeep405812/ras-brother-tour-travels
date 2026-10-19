@@ -192,6 +192,12 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
           icon: Calendar,
         },
         {
+          label: t('💰 Customer Price Offers', '💰 ग्राहकों के रेट ऑफर्स'),
+          page: 'owner-dashboard',
+          params: { tab: 'offers' },
+          icon: HandCoins,
+        },
+        {
           label: t('➕ Add Vehicle to Fleet', '➕ नई गाड़ी जोड़ें'),
           page: 'owner-dashboard',
           params: { tab: 'add-car' },
@@ -820,7 +826,7 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
 
             <button
               onClick={() => handleLinkClick('owner-dashboard', { tab: 'bookings' })}
-              className={`flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl text-[10px] font-bold transition ${
+              className={`flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl text-[10px] font-bold transition ${
                 currentPage === 'owner-dashboard' && pageParams?.tab === 'bookings'
                   ? 'text-amber-400'
                   : 'text-slate-400 hover:text-slate-200'
@@ -831,16 +837,28 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
             </button>
 
             <button
+              onClick={() => handleLinkClick('owner-dashboard', { tab: 'offers' })}
+              className={`flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl text-[10px] font-bold transition ${
+                currentPage === 'owner-dashboard' && pageParams?.tab === 'offers'
+                  ? 'text-amber-400'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <HandCoins className="w-4 h-4" />
+              <span>{t('Offers', 'ऑफर्स')}</span>
+            </button>
+
+            <button
               onClick={() => handleLinkClick('owner-dashboard', { tab: 'add-car' })}
-              className="flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl text-[10px] font-bold text-amber-400 hover:text-amber-300"
+              className="flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl text-[10px] font-bold text-amber-400 hover:text-amber-300"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>{t('+ Add Car', '+ जोड़ें')}</span>
+              <span>{t('+ Add', '+ जोड़ें')}</span>
             </button>
 
             <button
               onClick={() => handleLinkClick('owner-dashboard', { tab: 'profile' })}
-              className={`flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl text-[10px] font-bold transition ${
+              className={`flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl text-[10px] font-bold transition ${
                 currentPage === 'owner-dashboard' && pageParams?.tab === 'profile'
                   ? 'text-amber-400'
                   : 'text-slate-400 hover:text-slate-200'

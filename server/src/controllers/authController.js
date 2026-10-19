@@ -196,10 +196,13 @@ exports.updateProfile = async (req, res, next) => {
 
     let ownerProfile = null;
     if (user.role === 'owner') {
-      if (businessName) {
+      const ownerUpdates = {};
+      if (businessName !== undefined && businessName.trim()) ownerUpdates.businessName = businessName.trim();
+      if (req.body.upiId !== undefined) ownerUpdates['bankDetails.upiId'] = req.body.upiId.trim();
+      if (Object.keys(ownerUpdates).length > 0) {
         ownerProfile = await OwnerProfile.findOneAndUpdate(
           { user: user._id },
-          { businessName },
+          { $set: ownerUpdates },
           { new: true, upsert: true }
         );
       } else {

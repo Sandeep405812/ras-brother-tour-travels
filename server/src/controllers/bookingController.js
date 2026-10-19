@@ -637,7 +637,7 @@ exports.createBooking = async (req, res, next) => {
           req.user.id,
 
         owner:
-          car.owner._id,
+          car.owner?._id || car.owner,
 
         car:
           car._id,
@@ -875,10 +875,15 @@ exports.getMyBookings =
 exports.getOwnerBookings =
   async (req, res, next) => {
     try {
+      const ownerCars = await Car.find({ owner: req.user.id }).select('_id');
+      const ownerCarIds = ownerCars.map((c) => c._id);
+
       const bookings =
         await Booking.find({
-          owner:
-            req.user.id,
+          $or: [
+            { owner: req.user.id },
+            { car: { $in: ownerCarIds } },
+          ],
         })
           .populate('car')
           .populate(
@@ -888,7 +893,6 @@ exports.getOwnerBookings =
           .sort({
             createdAt: -1,
           });
-
 
       res.json({
         success: true,
