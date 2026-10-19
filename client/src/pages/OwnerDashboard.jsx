@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import RasLogo from '../components/brand/RasLogo';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useLanguage } from '../context/LanguageContext';
-import LanguageToggle from '../components/common/LanguageToggle';
 import {
   Car,
   Calendar,
@@ -665,27 +663,28 @@ export default function OwnerDashboard({
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-24 selection:bg-amber-500 selection:text-white">
-      {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black">
-              <Car className="w-5 h-5" />
+      {/* Main Content Area */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-5">
+        {/* Compact Owner Partner Banner */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black shrink-0">
+              <Car className="w-6 h-6" />
             </div>
             <div>
+              <div className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wider">
+                {user?.ownerProfile?.businessName || t('Fleet Partner Console', 'कार मालिक पार्टनर')}
+              </div>
               <h1 className="text-lg sm:text-xl font-black text-white font-heading">
-                {t('Car Owner Portal', 'कार मालिक पोर्टल')}
+                {t('Welcome,', 'नमस्ते,')} <span className="text-amber-300">{user?.name || 'Partner'}</span>
               </h1>
-              <p className="text-xs text-slate-400">
-                {t('Welcome,', 'नमस्ते,')} <span className="font-bold text-amber-300">{user?.name || 'Owner'}</span> {user?.phone ? `• 📞 ${user.phone}` : ''}
+              <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[240px] sm:max-w-none">
+                {user?.phone ? `📞 ${user.phone}` : ''} {user?.email ? `• ${user.email}` : ''}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Language Switcher */}
-            <LanguageToggle variant="dark" />
-
+          <div className="flex items-center gap-2 shrink-0">
             {/* Sound Notification Alert Toggle */}
             <button
               type="button"
@@ -705,12 +704,12 @@ export default function OwnerDashboard({
               {soundEnabled ? (
                 <>
                   <Volume2 className="w-4 h-4 text-emerald-400" />
-                  <span className="hidden sm:inline">{t('Alert ON', 'अलर्ट चालू')}</span>
+                  <span>{t('Alert ON', 'अलर्ट चालू')}</span>
                 </>
               ) : (
                 <>
                   <BellOff className="w-4 h-4 text-slate-400" />
-                  <span className="hidden sm:inline">{t('Muted', 'म्यूट')}</span>
+                  <span>{t('Muted', 'म्यूट')}</span>
                 </>
               )}
             </button>
@@ -720,113 +719,15 @@ export default function OwnerDashboard({
               <button
                 type="button"
                 onClick={() => onOpenDirectBooking(myFleet[0] || null)}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition active:scale-95"
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
                 title={t('Create direct booking for walk-in client', 'दुकान पर आए ग्राहक की सीधी बुकिंग करें')}
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
-                <span className="hidden sm:inline">{t('Walk-in Booking', 'सीधी बुकिंग')}</span>
+                <span>{t('Walk-in Client', 'सीधी बुकिंग')}</span>
               </button>
             )}
-
-            <button
-              onClick={onLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition"
-              title={t('Logout', 'लॉगआउट')}
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
           </div>
         </div>
-
-        {/* 4 MAIN TABS */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pb-3 pt-1">
-            <button
-              onClick={() => setActiveTab('cars')}
-              className={`py-3 px-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${
-                activeTab === 'cars'
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
-              }`}
-            >
-              <Car className="w-4 h-4" />
-              <span>{t('My Cars', 'मेरी गाड़ियाँ')}</span>
-              <span
-                className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                  activeTab === 'cars' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
-                }`}
-              >
-                {myFleet.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('bookings')}
-              className={`py-3 px-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${
-                activeTab === 'bookings'
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span>{t('Bookings', 'बुकिंग्स')}</span>
-              {pendingBookingsCount > 0 ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-rose-500 text-white animate-pulse">
-                  {pendingBookingsCount}
-                </span>
-              ) : (
-                <span
-                  className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                    activeTab === 'bookings' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
-                  }`}
-                >
-                  {ownerBookings.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('offers')}
-              className={`py-3 px-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${
-                activeTab === 'offers'
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
-              }`}
-            >
-              <HandCoins className="w-4 h-4" />
-              <span>{t('Price Offers', 'रेट ऑफर्स')}</span>
-              {pendingOffersCount > 0 ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-rose-500 text-white animate-pulse">
-                  {pendingOffersCount}
-                </span>
-              ) : (
-                <span
-                  className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                    activeTab === 'offers' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-white'
-                  }`}
-                >
-                  {ownerOffers.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`py-3 px-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${
-                activeTab === 'profile'
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>{t('Agency Profile', 'प्रोफाइल व UPI')}</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>

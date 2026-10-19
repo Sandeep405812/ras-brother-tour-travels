@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import RasLogo from '../components/brand/RasLogo';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import {
@@ -29,7 +28,6 @@ import {
 } from 'lucide-react';
 
 import { useLanguage } from '../context/LanguageContext';
-import LanguageToggle from '../components/common/LanguageToggle';
 
 export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, onLogout, initialTab }) {
   const { user, token } = useAuth();
@@ -252,98 +250,33 @@ export default function CustomerDashboard({ onOpenChat, onBookCar, onNavigate, o
   return (
     <div className="min-h-screen bg-slate-50 py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Customer Portal Top Bar (clean replacement for global navbar) */}
-        <div className="flex flex-row items-center justify-between gap-2 bg-white p-3.5 sm:p-4 sm:px-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <RasLogo variant="light" size="sm" showTagline={false} />
-            <div className="h-5 w-px bg-slate-200 hidden sm:block" />
-            <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-800 truncate hidden sm:inline">
-              Customer Portal
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <LanguageToggle variant="light" />
-
-            {onNavigate && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('home')}
-                  className="px-3 sm:px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-sm"
-                >
-                  <Car className="w-3.5 h-3.5" />
-                  <span>🚗 {t('Book Your Car', 'गाड़ी बुक करें')}</span>
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={onLogout}
-              className="px-2.5 sm:px-4 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold transition flex items-center gap-1 border border-slate-200"
-            >
-              <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{t('Logout', 'लॉगआउट')}</span>
-            </button>
-          </div>
-        </div>
-
         {/* Customer Header Banner */}
-        <div className="bg-slate-900 rounded-3xl p-5 sm:p-8 text-white flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-xl">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-xl sm:text-2xl flex items-center justify-center shrink-0">
+        <div className="bg-slate-900 rounded-3xl p-5 sm:p-7 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-xl sm:text-2xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20">
               {user?.name?.charAt(0) || 'C'}
             </div>
             <div>
               <div className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wider">
-                Customer Concierge Panel
+                {t('Customer Concierge Panel', 'कस्टमर पैनल')}
               </div>
-              <h1 className="text-xl sm:text-2xl font-black font-heading">{user?.name}</h1>
-              <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[240px] sm:max-w-none">{user?.email} • {user?.phone}</p>
+              <h1 className="text-xl sm:text-2xl font-black font-heading text-white">{user?.name}</h1>
+              <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[240px] sm:max-w-none">{user?.email} {user?.phone ? `• 📞 ${user.phone}` : ''}</p>
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none whitespace-nowrap shrink-0">
-            <button
-              onClick={() => setActiveTab('bookings')}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition shrink-0 ${
-                activeTab === 'bookings'
-                  ? 'bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              My Bookings ({bookings.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('offers')}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition shrink-0 ${
-                activeTab === 'offers'
-                  ? 'bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              Price Offers ({offers.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('payments')}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition shrink-0 ${
-                activeTab === 'payments'
-                  ? 'bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              Receipts
-            </button>
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition shrink-0 ${
-                activeTab === 'profile'
-                  ? 'bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              👤 {t('My Profile & Details', 'मेरी प्रोफाइल')}
-            </button>
-          </div>
+          {onNavigate && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate('cars')}
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 cursor-pointer"
+              >
+                <Car className="w-4 h-4" />
+                <span>🚗 {t('Book Your Car', 'गाड़ी बुक करें')}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tab 1: Bookings */}

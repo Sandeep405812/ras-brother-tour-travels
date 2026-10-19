@@ -139,7 +139,7 @@ function FloatingInstallAppButton() {
   };
 
   return (
-    <div className="sm:hidden fixed bottom-4 left-4 z-40 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-md text-white border border-amber-500/40 rounded-2xl p-1.5 pr-2.5 shadow-2xl">
+    <div className="sm:hidden fixed bottom-16 sm:bottom-20 left-3 z-30 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-md text-white border border-amber-500/40 rounded-2xl p-1.5 pr-2.5 shadow-2xl">
       <button
         onClick={handleInstall}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:from-amber-400 transition shadow-md"
@@ -475,8 +475,8 @@ function MainLayout() {
           {/* Floating Wedding Fleet Cart Pill Button */}
           <FloatingFleetCartButton />
 
-          {/* Floating PWA Install App Button on Mobile */}
-          <FloatingInstallAppButton />
+          {/* Floating PWA Install App Button on Mobile (only for guests so it never blocks dashboard dock) */}
+          {!isAuthenticated && <FloatingInstallAppButton />}
 
           {/* Floating WhatsApp Concierge Button */}
           <FloatingWhatsAppButton />

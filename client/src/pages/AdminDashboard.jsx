@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import RasLogo from '../components/brand/RasLogo';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useCompany } from '../context/CompanyContext';
@@ -443,38 +442,8 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
   return (
     <div className="min-h-screen bg-slate-50 py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Admin Portal Top Bar (clean replacement for global navbar) */}
-        <div className="flex flex-row items-center justify-between gap-2 bg-white p-3.5 sm:p-4 sm:px-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <RasLogo variant="light" size="sm" showTagline={false} />
-            <div className="h-5 w-px bg-slate-200 hidden sm:block" />
-            <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-800 truncate hidden sm:inline">
-              Admin Console
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {onNavigate && (
-              <button
-                type="button"
-                onClick={() => onNavigate('cars')}
-                className="px-3 sm:px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
-              >
-                <Car className="w-3.5 h-3.5" /> <span className="hidden sm:inline">View Fleet</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onLogout}
-              className="px-3 sm:px-4 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
-            >
-              <LogOut className="w-3.5 h-3.5" /> Logout
-            </button>
-          </div>
-        </div>
-
         {/* Admin Header */}
-        <div className="bg-slate-900 rounded-3xl p-5 sm:p-8 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 shadow-xl">
+        <div className="bg-slate-900 rounded-3xl p-5 sm:p-7 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-3.5 sm:gap-4">
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black text-xl shrink-0">
               ⚙️
@@ -483,47 +452,25 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
               <div className="text-[10px] sm:text-xs font-bold text-amber-400 uppercase tracking-wider">
                 Platform Administrator Console
               </div>
-              <h1 className="text-xl sm:text-2xl font-black font-heading">
+              <h1 className="text-xl sm:text-2xl font-black font-heading text-white">
                 {company.companyName}
               </h1>
               <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">Control center for users, KYC, revenue, coupons &amp; branding</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none w-full md:w-auto">
-            {[
-              {
-                id: 'bookings',
-                label: `Bookings (${bookingMetrics.totalCount})`,
-                badge: bookingMetrics.pendingVerificationsCount > 0 ? `${bookingMetrics.pendingVerificationsCount} verify` : null,
-              },
-              { id: 'customers', label: `Customers (${customers.length})` },
-              { id: 'owners', label: `Fleet Owners (${owners.length})` },
-              { id: 'backup', label: 'Weekly Backup 🛡️' },
-              { id: 'overview', label: 'Stats' },
-              { id: 'kyc', label: `KYC (${kycList.length})` },
-              { id: 'coupons', label: `Coupons (${couponsList.length})` },
-              { id: 'settings', label: 'Brand & UPI Settings' },
-              { id: 'admin_security', label: 'Admin Security 🔐' },
-            ].map((tab) => (
+          {onNavigate && (
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative px-3.5 sm:px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-amber-500 text-slate-950 font-black shadow'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
+                type="button"
+                onClick={() => onNavigate('cars')}
+                className="px-3.5 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 shadow-sm cursor-pointer"
               >
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
-                    {tab.badge}
-                  </span>
-                )}
+                <Car className="w-3.5 h-3.5 text-amber-400" />
+                <span>View Fleet</span>
               </button>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Tab: Fleet Bookings & Live Monitoring */}
