@@ -51,3 +51,44 @@ export function formatDriverWhatsAppMessage(booking, chauffeur) {
     `The chauffeur will arrive on time at your pickup location. For support: +91 9918272164.`
   );
 }
+
+export function formatDriverDutySlipWhatsAppMessage(booking, chauffeur = {}, company = {}) {
+  const dateStr = new Date(booking.startDate).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  const carName = booking.car?.brand
+    ? `${booking.car.brand} ${booking.car.name}`
+    : booking.car?.name || 'Assigned Car';
+  const customerName = booking.customer?.name || booking.offlineCustomer?.name || 'Valued Customer';
+  const customerPhone = booking.customer?.phone || booking.offlineCustomer?.phone || 'N/A';
+  const balance = booking.pricing?.remainingAmount || 0;
+  const plate = chauffeur.vehiclePlate || booking.car?.licensePlate || 'Assigned Vehicle';
+  const pickupAddr = booking.pickupLocation?.address || 'Pickup Point';
+  const dropAddr = booking.destinationAddress || 'As per booking route';
+  const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddr)}`;
+
+  return (
+    `👨‍✈️ *RAS BROTHER TOUR & TRAVELS - DRIVER TRIP DUTY SLIP*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `📋 *Booking ID:* #${booking.bookingId}\n` +
+    `🚘 *Vehicle:* ${carName}\n` +
+    `🔢 *Number Plate:* ${plate}\n` +
+    `📅 *Reporting Date:* ${dateStr}\n` +
+    `⏰ *Reporting Time:* ${booking.startTime || '10:00 AM'} sharp\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `👤 *Customer Name:* ${customerName}\n` +
+    `📞 *Customer Mobile:* ${customerPhone}\n` +
+    `📍 *Pickup Address:* ${pickupAddr}\n` +
+    `🗺️ *Maps Navigation:* ${mapsLink}\n` +
+    `🏁 *Destination:* ${dropAddr}\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `💵 *Balance to Collect from Customer:* ₹${balance.toLocaleString('en-IN')} (Cash/UPI upon arrival)\n` +
+    `🔑 *Security OTP:* Ask customer for the 4-digit Ride Start OTP to verify trip.\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🏢 *Office Helpline:* ${company.phone || '+91 9918272164'}\n` +
+    `⚠️ *Instructions:* Please wear uniform, reach 20-30 mins prior to reporting time, and keep vehicle clean.`
+  );
+}
+

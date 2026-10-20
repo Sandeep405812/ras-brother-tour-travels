@@ -1564,15 +1564,26 @@ exports.assignChauffeur =
 
       await booking.save();
 
+      // Notify customer if customer account exists
+      if (booking.customer) {
+        try {
+          await Notification.create({
+            user: booking.customer,
+            title: 'Chauffeur / Driver Assigned 👨‍✈️',
+            message: `Chauffeur ${booking.chauffeur.name} (${booking.chauffeur.phone}) has been assigned to your booking #${booking.bookingId}. Vehicle Plate: ${booking.chauffeur.vehiclePlate || 'Confirmed'}.`,
+            type: 'booking',
+            link: '/dashboard',
+          });
+        } catch (notifErr) {
+          console.warn('Chauffeur assignment notification skipped:', notifErr.message);
+        }
+      }
 
       res.json({
         success: true,
-
-        message:
-          'Chauffeur details updated successfully!',
-
-        chauffeur:
-          booking.chauffeur,
+        message: 'Chauffeur details updated successfully!',
+        chauffeur: booking.chauffeur,
+        booking,
       });
 
     } catch (error) {
