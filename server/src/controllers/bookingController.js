@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Car = require('../models/Car');
 const User = require('../models/User');
@@ -2275,12 +2276,236 @@ exports.createBookingQuery =
 
       res.json({
         success: true,
-
         message:
           'Your query has been sent to the Admin team. We will call/contact you shortly!',
       });
-
     } catch (error) {
       next(error);
     }
   };
+
+// ============================================================
+// DRIVER MOBILE TRIP PASS & DIRECT OTP VERIFICATION
+// ============================================================
+
+// @desc Get Driver Trip Pass details (Public with valid bookingId)
+// @route GET /api/bookings/driver-pass/:bookingId
+exports.getDriverTripPass = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const booking = await Booking.findOne({
+      $or: [
+        { bookingId: bookingId },
+        ...(mongoose.Types.ObjectId.isValid(bookingId) ? [{ _id: bookingId }] : []),
+      ],
+    })
+      .populate('car', 'brand name licensePlate images fuelType seats')
+      .populate('customer', 'name phone')
+      .populate('owner', 'name phone');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip booking not found.',
+      });
+    }
+
+    // Do NOT send startOtp to driver API for security
+    const tripData = {
+      _id: booking._id,
+      bookingId: booking.bookingId,
+      status: booking.status,
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+      startTime: booking.startTime,
+      bookingPurpose: booking.bookingPurpose || booking.eventType,
+      tripType: booking.tripType,
+      totalHours: booking.totalHours,
+      pickupLocation: booking.pickupLocation,
+      destinationAddress: booking.destinationAddress,
+      destinationLocation: booking.destinationLocation,
+      distanceKm: booking.distanceKm,
+      car: booking.car,
+      customer: booking.customer || booking.offlineCustomer,
+      owner: booking.owner ? { name: booking.owner.name, phone: booking.owner.phone } : null,
+      chauffeur: booking.chauffeur,
+      pricing: {
+        totalAmount: booking.pricing?.totalAmount,
+        advanceAmount: booking.pricing?.advanceAmount,
+        remainingAmount: booking.pricing?.remainingAmount,
+      },
+      remainingCollected: booking.remainingCollected,
+      rideStartedAt: booking.rideStartedAt,
+      rideCompletedAt: booking.rideCompletedAt,
+    };
+
+    res.json({
+      success: true,
+      trip: tripData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Driver enters 4-digit customer OTP to begin ride
+// @route PUT /api/bookings/driver-pass/:bookingId/start-ride
+exports.driverStartRideWithOtp = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const { otp } = req.body;
+
+    const booking = await Booking.findOne({
+      $or: [
+        { bookingId: bookingId },
+        ...(mongoose.Types.ObjectId.isValid(bookingId) ? [{ _id: bookingId }] : []),
+      ],
+    })
+      .populate('car')
+      .populate('customer');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip booking not found.',
+      });
+    }
+
+    if (booking.status === 'in_progress') {
+      return res.json({
+        success: true,
+        message: 'Ride is already in progress.',
+        status: booking.status,
+      });
+    }
+
+    if (booking.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'This ride has already been completed.',
+      });
+    }
+
+    if (booking.status === 'cancelled' || booking.status === 'rejected') {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking is cancelled.',
+      });
+    }
+
+    // Check same-day scheduled date (IST timezone)
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+    const startIST = new Date(new Date(booking.startDate).getTime() + istOffset).toISOString().split('T')[0];
+
+    if (todayIST < startIST) {
+      return res.status(400).json({
+        success: false,
+        message: `Ride can only be started on scheduled trip date (${new Date(booking.startDate).toLocaleDateString('en-IN')}).`,
+      });
+    }
+
+    if (!otp || String(otp).trim() !== String(booking.startOtp).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid 4-digit OTP! Please ask the customer to show the OTP from their dashboard.',
+      });
+    }
+
+    booking.status = 'in_progress';
+    booking.rideStartedAt = new Date();
+    await booking.save();
+
+    // Customer In-App Notification
+    if (booking.customer?._id) {
+      try {
+        await Notification.create({
+          user: booking.customer._id,
+          title: 'Chauffeur Ride Started! 🚗💨',
+          message: `Your chauffeur has verified the OTP. Your ride #${booking.bookingId} (${booking.car?.brand || ''} ${booking.car?.name || ''}) has started. Have a wonderful trip!`,
+          type: 'booking',
+          link: '/dashboard',
+        });
+      } catch (e) {
+        console.warn('Customer ride start notification skipped:', e.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP verified! Ride started successfully.',
+      status: booking.status,
+      rideStartedAt: booking.rideStartedAt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Driver marks trip complete and balance collected
+// @route PUT /api/bookings/driver-pass/:bookingId/complete-ride
+exports.driverCompleteRide = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const { collectionMethod = 'cash' } = req.body;
+
+    const booking = await Booking.findOne({
+      $or: [
+        { bookingId: bookingId },
+        ...(mongoose.Types.ObjectId.isValid(bookingId) ? [{ _id: bookingId }] : []),
+      ],
+    })
+      .populate('car')
+      .populate('customer');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip booking not found.',
+      });
+    }
+
+    if (booking.status === 'completed') {
+      return res.json({
+        success: true,
+        message: 'Ride has already been completed.',
+        status: booking.status,
+      });
+    }
+
+    booking.status = 'completed';
+    booking.rideCompletedAt = new Date();
+    booking.remainingCollected = {
+      status: true,
+      method: collectionMethod,
+      collectedAt: new Date(),
+    };
+
+    await booking.save();
+
+    // Customer In-App Notification
+    if (booking.customer?._id) {
+      try {
+        await Notification.create({
+          user: booking.customer._id,
+          title: 'Trip Completed! Thank you ✨',
+          message: `Your ride #${booking.bookingId} with RAS Brother Tour & Travels has been successfully completed. We hope you enjoyed our service! Please leave a review.`,
+          type: 'booking',
+          link: '/dashboard',
+        });
+      } catch (e) {
+        console.warn('Customer trip complete notification skipped:', e.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Trip completed successfully! Thank you for the safe driving.',
+      status: booking.status,
+      remainingCollected: booking.remainingCollected,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

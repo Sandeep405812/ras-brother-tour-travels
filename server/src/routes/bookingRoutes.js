@@ -13,8 +13,16 @@ const {
   verifyPaymentAndConfirmBooking,
   createBulkBooking,
   createBookingQuery,
+  getDriverTripPass,
+  driverStartRideWithOtp,
+  driverCompleteRide,
 } = require('../controllers/bookingController');
 const { protect, authorize } = require('../middleware/auth');
+
+// Driver Mobile Duty Pass & Direct OTP Start (Public access via unique Booking ID)
+router.get('/driver-pass/:bookingId', getDriverTripPass);
+router.put('/driver-pass/:bookingId/start-ride', driverStartRideWithOtp);
+router.put('/driver-pass/:bookingId/complete-ride', driverCompleteRide);
 
 router.post('/', protect, createBooking);
 router.post('/bulk', protect, createBulkBooking);

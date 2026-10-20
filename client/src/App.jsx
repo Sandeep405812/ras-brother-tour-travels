@@ -27,6 +27,7 @@ import OwnerDashboard from './pages/OwnerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ChatPage from './pages/ChatPage';
 import BookingConfirmationPage from './pages/BookingConfirmationPage';
+import DriverPassPage from './pages/DriverPassPage';
 
 import BookingModal from './components/cars/BookingModal';
 import MakeOfferModal from './components/cars/MakeOfferModal';
@@ -95,6 +96,7 @@ export function normalizePageName(page) {
   if (['chat', 'messages'].includes(clean)) return 'chat';
   if (['booking-confirmation', 'confirmed', 'receipt'].includes(clean)) return 'booking-confirmation';
   if (['car-details'].includes(clean)) return 'car-details';
+  if (['driver-pass', 'driver', 'chauffeur-pass', 'duty-pass'].includes(clean)) return 'driver-pass';
 
   return 'home';
 }
@@ -297,19 +299,21 @@ function MainLayout() {
     'admin-dashboard',
     'chat',
     'booking-confirmation',
+    'driver-pass',
   ];
 
   const isAuthPage = currentPage === 'login' || currentPage === 'register';
+  const isStandalonePage = isAuthPage || currentPage === 'driver-pass';
 
   return (
-    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:flex-row' : ''} bg-slate-50 selection:bg-amber-500 selection:text-white font-sans`}>
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col ${isAuthenticated && !isStandalonePage ? 'lg:flex-row' : ''} bg-slate-50 selection:bg-amber-500 selection:text-white font-sans`}>
       {/* Universal Navigation: Top Navbar for Guests, Left Sidebar for Authenticated Users, None for Auth pages */}
-      {!isAuthPage && (
+      {!isStandalonePage && (
         <Navbar onNavigate={navigateTo} currentPage={currentPage} pageParams={pageParams} />
       )}
 
       {/* Main Content Area */}
-      <div className={`flex-1 min-w-0 w-full max-w-full overflow-x-hidden flex flex-col ${isAuthenticated && !isAuthPage ? 'lg:pl-64 xl:pl-72' : ''} ${!isAuthPage ? 'pb-16 lg:pb-0' : ''}`}>
+      <div className={`flex-1 min-w-0 w-full max-w-full overflow-x-hidden flex flex-col ${isAuthenticated && !isStandalonePage ? 'lg:pl-64 xl:pl-72' : ''} ${!isStandalonePage ? 'pb-16 lg:pb-0' : ''}`}>
         {/* Main Content Router */}
         <main className="flex-1 w-full max-w-full overflow-x-hidden">
         {currentPage === 'home' && (
@@ -423,6 +427,10 @@ function MainLayout() {
           />
         )}
 
+        {currentPage === 'driver-pass' && (
+          <DriverPassPage initialBookingId={pageParams?.id || pageParams?.bookingId} />
+        )}
+
         {/* Fallback for any unknown route so it NEVER renders a blank page */}
         {!KNOWN_PAGES.includes(currentPage) && (
           <HomePage
@@ -435,7 +443,7 @@ function MainLayout() {
         </main>
 
         {/* Footer: Strictly displayed ONLY on the Home Page and never on auth pages */}
-        {currentPage === 'home' && !isAuthPage && (
+        {currentPage === 'home' && !isStandalonePage && (
           <Footer onNavigate={navigateTo} />
         )}
       </div>
@@ -469,8 +477,8 @@ function MainLayout() {
       {/* Bulk Booking / Wedding Fleet Cart Modal */}
       <BulkBookingModal onNavigate={navigateTo} />
 
-      {/* Floating Action Elements (Hidden on auth pages to maintain pure focus) */}
-      {!isAuthPage && (
+      {/* Floating Action Elements (Hidden on auth and standalone pages to maintain pure focus) */}
+      {!isStandalonePage && (
         <>
           {/* Floating Wedding Fleet Cart Pill Button */}
           <FloatingFleetCartButton />

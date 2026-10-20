@@ -67,7 +67,11 @@ export function formatDriverDutySlipWhatsAppMessage(booking, chauffeur = {}, com
   const plate = chauffeur.vehiclePlate || booking.car?.licensePlate || 'Assigned Vehicle';
   const pickupAddr = booking.pickupLocation?.address || 'Pickup Point';
   const dropAddr = booking.destinationAddress || 'As per booking route';
-  const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddr)}`;
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://rasbrothertravels.com';
+  const driverPassUrl = `${origin}/driver-pass?id=${booking.bookingId}`;
 
   return (
     `👨‍✈️ *RAS BROTHER TOUR & TRAVELS - DRIVER TRIP DUTY SLIP*\n` +
@@ -86,6 +90,9 @@ export function formatDriverDutySlipWhatsAppMessage(booking, chauffeur = {}, com
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `💵 *Balance to Collect from Customer:* ₹${balance.toLocaleString('en-IN')} (Cash/UPI upon arrival)\n` +
     `🔑 *Security OTP:* Ask customer for the 4-digit Ride Start OTP to verify trip.\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `📲 *Open Driver Mobile Pass & Enter OTP:*\n` +
+    `${driverPassUrl}\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `🏢 *Office Helpline:* ${company.phone || '+91 9918272164'}\n` +
     `⚠️ *Instructions:* Please wear uniform, reach 20-30 mins prior to reporting time, and keep vehicle clean.`
