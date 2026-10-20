@@ -2,14 +2,31 @@
  * WhatsApp Formatted Message Utility for RAS Brother Tour & Travels
  */
 
+export function normalizeWhatsAppPhone(phone) {
+  if (!phone) return '';
+  const clean = String(phone).replace(/[^0-9]/g, '');
+  if (clean.length === 10) return `91${clean}`;
+  if (clean.length === 11 && clean.startsWith('0')) return `91${clean.slice(1)}`;
+  if (clean.length === 12 && clean.startsWith('91')) return clean;
+  if (clean.length > 10) return `91${clean.slice(-10)}`;
+  return clean;
+}
+
 export function openWhatsAppMessage(phoneNumber, messageText) {
-  const cleanPhone = (phoneNumber || '').replace(/[^0-9]/g, '');
-  const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+  const targetPhone = normalizeWhatsAppPhone(phoneNumber);
   const encodedText = encodeURIComponent(messageText);
   const url = targetPhone
     ? `https://wa.me/${targetPhone}?text=${encodedText}`
     : `https://wa.me/?text=${encodedText}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+
+  try {
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      window.location.href = url;
+    }
+  } catch (e) {
+    window.location.href = url;
+  }
 }
 
 export function formatBookingWhatsAppMessage(booking, company = {}) {
@@ -67,6 +84,8 @@ export function formatDriverDutySlipWhatsAppMessage(booking, chauffeur = {}, com
   const plate = chauffeur.vehiclePlate || booking.car?.licensePlate || 'Assigned Vehicle';
   const pickupAddr = booking.pickupLocation?.address || 'Pickup Point';
   const dropAddr = booking.destinationAddress || 'As per booking route';
+  const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddr)}`;
+
   const origin =
     typeof window !== 'undefined' && window.location?.origin
       ? window.location.origin
@@ -98,4 +117,14 @@ export function formatDriverDutySlipWhatsAppMessage(booking, chauffeur = {}, com
     `⚠️ *Instructions:* Please wear uniform, reach 20-30 mins prior to reporting time, and keep vehicle clean.`
   );
 }
+
+export function openDriverDutySlipWhatsApp(booking, chauffeur = {}, company = {}) {
+  const phone = chauffeur.phone || booking.chauffeur?.phone;
+  if (!phone) {
+    throw new Error('Driver mobile number is required');
+  }
+  const message = formatDriverDutySlipWhatsAppMessage(booking, chauffeur, company);
+  openWhatsAppMessage(phone, message);
+}
+
 

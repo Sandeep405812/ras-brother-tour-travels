@@ -4,7 +4,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
-import { formatDriverDutySlipWhatsAppMessage } from '../../utils/whatsappHelper';
+import { openDriverDutySlipWhatsApp, openWhatsAppMessage, formatDriverDutySlipWhatsAppMessage } from '../../utils/whatsappHelper';
 
 export default function AssignDriverModal({
   booking,
@@ -115,37 +115,44 @@ export default function AssignDriverModal({
       );
       return;
     }
-    const cleanPhone = chauffeurPhone.replace(/[^0-9]/g, '');
-    const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-    const msg = formatDriverDutySlipWhatsAppMessage(
-      booking,
-      {
-        name: chauffeurName,
-        phone: chauffeurPhone,
-        vehiclePlate: vehiclePlate || booking.car?.licensePlate,
-      },
-      company
-    );
-    window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+    try {
+      openDriverDutySlipWhatsApp(
+        booking,
+        {
+          name: chauffeurName,
+          phone: chauffeurPhone,
+          vehiclePlate: vehiclePlate || booking.car?.licensePlate,
+        },
+        company
+      );
+      showToast(
+        t('Opening WhatsApp to send Duty Slip to Driver...', 'ड्राइवर को ड्यूटी स्लिप भेजने के लिए व्हाट्सएप खुल रहा है...'),
+        'success'
+      );
+    } catch (err) {
+      showToast(err.message || 'Error opening WhatsApp', 'error');
+    }
   };
 
   const handleShareToCustomerWhatsApp = () => {
     const custPhone = booking.customer?.phone || booking.offlineCustomer?.phone || '';
     if (!custPhone) {
-      showToast('Customer phone number not available', 'error');
+      showToast(t('Customer phone number not available', 'कस्टमर का फोन नंबर उपलब्ध नहीं है'), 'error');
       return;
     }
-    const cleanPhone = custPhone.replace(/[^0-9]/g, '');
-    const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-    const msg = encodeURIComponent(
-      `Namaste ${booking.customer?.name || 'Customer'}! \n\n` +
-      `Your Chauffeur has been assigned for RAS Brother Booking #${booking.bookingId} (${booking.car?.name || 'Vehicle'}):\n` +
-      `👨‍✈️ Driver: ${chauffeurName}\n` +
-      `📞 Phone: ${chauffeurPhone}\n` +
-      `🚗 Plate: ${vehiclePlate || booking.car?.licensePlate || 'Confirmed'}\n\n` +
-      `Our chauffeur will report on time at your pickup point. Have a wonderful trip with RAS Brother Tour & Travels!`
-    );
-    window.open(`https://wa.me/${phoneWithCountry}?text=${msg}`, '_blank', 'noopener,noreferrer');
+    try {
+      const msg =
+        `Namaste ${booking.customer?.name || 'Customer'}! \n\n` +
+        `Your Chauffeur has been assigned for RAS Brother Booking #${booking.bookingId} (${booking.car?.name || 'Vehicle'}):\n` +
+        `👨‍✈️ Driver: ${chauffeurName}\n` +
+        `📞 Phone: ${chauffeurPhone}\n` +
+        `🚗 Plate: ${vehiclePlate || booking.car?.licensePlate || 'Confirmed'}\n\n` +
+        `Our chauffeur will report on time at your pickup point. Have a wonderful trip with RAS Brother Tour & Travels!`;
+
+      openWhatsAppMessage(custPhone, msg);
+    } catch (err) {
+      showToast(err.message || 'Error opening WhatsApp', 'error');
+    }
   };
 
   return (

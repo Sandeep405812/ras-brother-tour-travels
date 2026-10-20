@@ -43,7 +43,7 @@ import { normalizeCoordinates } from '../utils/distanceCalculator';
 import AssignDriverModal from '../components/booking/AssignDriverModal';
 import TripPassInvoiceModal from '../components/booking/TripPassInvoiceModal';
 import { useCompany } from '../context/CompanyContext';
-import { formatDriverDutySlipWhatsAppMessage } from '../utils/whatsappHelper';
+import { openDriverDutySlipWhatsApp, formatDriverDutySlipWhatsAppMessage } from '../utils/whatsappHelper';
 
 export default function OwnerDashboard({
   onNavigate,
@@ -1208,10 +1208,11 @@ export default function OwnerDashboard({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const cleanPhone = b.chauffeur.phone.replace(/[^0-9]/g, '');
-                                  const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                                  const msg = formatDriverDutySlipWhatsAppMessage(b, b.chauffeur, company);
-                                  window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+                                  try {
+                                    openDriverDutySlipWhatsApp(b, b.chauffeur, company);
+                                  } catch (err) {
+                                    showToast(err.message || 'Error opening WhatsApp', 'error');
+                                  }
                                 }}
                                 className="px-3 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-bold text-xs sm:text-sm rounded-xl border border-emerald-500/30 flex items-center gap-1.5 transition cursor-pointer"
                                 title={t('Send Duty Slip to Driver on WhatsApp', 'ड्राइवर को व्हाट्सएप पर ड्यूटी स्लिप भेजें')}
