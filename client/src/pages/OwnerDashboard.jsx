@@ -36,6 +36,11 @@ import {
   User,
   Power,
   PowerOff,
+  ShieldAlert,
+  Eye,
+  ExternalLink,
+  HelpCircle,
+  Send,
 } from 'lucide-react';
 import { uploadSingleFile } from '../utils/imageUpload';
 import LocationAutocomplete from '../components/common/LocationAutocomplete';
@@ -43,7 +48,19 @@ import { normalizeCoordinates } from '../utils/distanceCalculator';
 import AssignDriverModal from '../components/booking/AssignDriverModal';
 import TripPassInvoiceModal from '../components/booking/TripPassInvoiceModal';
 import { useCompany } from '../context/CompanyContext';
-import { openDriverDutySlipWhatsApp, formatDriverDutySlipWhatsAppMessage } from '../utils/whatsappHelper';
+import {
+  openDriverDutySlipWhatsApp,
+  formatDriverDutySlipWhatsAppMessage,
+  openSupportTicketWhatsApp,
+  formatSupportTicketWhatsAppMessage,
+} from '../utils/whatsappHelper';
+
+const cleanFileUrl = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'object' && val.url) return String(val.url).trim();
+  return String(val).trim();
+};
 
 export default function OwnerDashboard({
   onNavigate,
@@ -56,13 +73,56 @@ export default function OwnerDashboard({
   const { showToast } = useNotification();
   const { lang, t } = useLanguage();
   const { company } = useCompany();
+  const isKycEnforced = company ? company.kycRequired !== false : true;
 
-  // Tab state: 'cars' | 'bookings' | 'offers' | 'profile'
-  const VALID_OWNER_TABS = ['cars', 'bookings', 'offers', 'profile'];
+  // Tab state: 'cars' | 'bookings' | 'offers' | 'profile' | 'kyc' | 'support'
+  const VALID_OWNER_TABS = ['cars', 'bookings', 'offers', 'profile', 'kyc', 'support'];
   const [activeTab, setActiveTab] = useState(
     initialTab === 'add-car' ? 'cars' : (VALID_OWNER_TABS.includes(initialTab) ? initialTab : 'cars')
   );
   const [bookingFilter, setBookingFilter] = useState('all');
+
+  // KYC Verification State
+  const [kycData, setKycData] = useState(null);
+  const [kycLoading, setKycLoading] = useState(false);
+  const [showKycRequiredModal, setShowKycRequiredModal] = useState(false);
+  const [kycSubmitting, setKycSubmitting] = useState(false);
+  const [kycForm, setKycForm] = useState({
+    legalName: user?.name || '',
+    idType: 'Aadhaar Card',
+    idNumber: '',
+    documentFront: '',
+    documentBack: '',
+    panNumber: '',
+    panDocument: '',
+    drivingLicenseNumber: '',
+    drivingLicense: '',
+    rcNumber: '',
+    vehicleRegistrationRc: '',
+    bankAccountName: user?.name || '',
+    bankAccountNumber: '',
+    bankIfsc: '',
+    bankName: '',
+    upiId: user?.ownerProfile?.bankDetails?.upiId || '',
+  });
+
+  // Owner Helpdesk & Problem Queries State
+  const [ownerTickets, setOwnerTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
+  const [submittingTicket, setSubmittingTicket] = useState(false);
+  const [selectedTicketForView, setSelectedTicketForView] = useState(null);
+  const [ticketReplyText, setTicketReplyText] = useState('');
+  const [sendingTicketReply, setSendingTicketReply] = useState(false);
+  const [uploadingDocField, setUploadingDocField] = useState(null);
+  const [newTicketForm, setNewTicketForm] = useState({
+    category: 'Booking Issue',
+    subject: '',
+    description: '',
+    priority: 'medium',
+    bookingId: '',
+    attachment: '',
+  });
 
   // Car Modal State
   const [carModalOpen, setCarModalOpen] = useState(false);
@@ -72,11 +132,15 @@ export default function OwnerDashboard({
   useEffect(() => {
     if (initialTab === 'add-car') {
       setActiveTab('cars');
-      setCarModalOpen(true);
+      if (!isKycEnforced || kycData?.status === 'verified') {
+        setCarModalOpen(true);
+      } else {
+        setShowKycRequiredModal(true);
+      }
     } else if (initialTab && VALID_OWNER_TABS.includes(initialTab)) {
       setActiveTab(initialTab);
     }
-  }, [initialTab]);
+  }, [initialTab, isKycEnforced, kycData?.status]);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -249,6 +313,9 @@ export default function OwnerDashboard({
     perHour: '',
     weddingRate: '',
     partyRate: '',
+    registrationNumber: '',
+    rcDocument: '',
+    insuranceDocument: '',
     locationAddress: '',
     locationCoords: null,
     fuelIncluded: true,
@@ -260,21 +327,25 @@ export default function OwnerDashboard({
   };
   const [carForm, setCarForm] = useState(initialCarForm);
 
-  // Fetch Owner's Cars, Bookings, and Price Offers
+  // Fetch Owner's Cars, Bookings, Price Offers, KYC & Support Tickets
   const fetchDashboardData = async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [carsRes, bookingsRes, offersRes] = await Promise.all([
+      const [carsRes, bookingsRes, offersRes, kycRes, ticketsRes] = await Promise.all([
         fetch('/api/cars/my-fleet', { headers }),
         fetch('/api/bookings/owner-bookings', { headers }),
         fetch('/api/offers/owner-offers', { headers }),
+        fetch('/api/owners/kyc', { headers }),
+        fetch('/api/support/my-tickets', { headers }),
       ]);
 
       const carsData = await carsRes.json();
       const bookingsData = await bookingsRes.json();
       const offersData = await offersRes.json();
+      const kycResData = await kycRes.json();
+      const ticketsData = await ticketsRes.json();
 
       if (carsData.success) {
         setMyFleet(carsData.cars || []);
@@ -292,6 +363,31 @@ export default function OwnerDashboard({
       }
       if (offersData.success) {
         setOwnerOffers(offersData.offers || []);
+      }
+      if (kycResData.success && kycResData.kyc) {
+        const k = kycResData.kyc;
+        setKycData(k);
+        setKycForm({
+          legalName: k.legalName || user?.name || '',
+          idType: k.idType || 'Aadhaar Card',
+          idNumber: k.idNumber || '',
+          documentFront: k.documentFront || '',
+          documentBack: k.documentBack || '',
+          panNumber: k.panNumber || '',
+          panDocument: k.panDocument || '',
+          drivingLicenseNumber: k.drivingLicenseNumber || '',
+          drivingLicense: k.drivingLicense || '',
+          rcNumber: k.rcNumber || '',
+          vehicleRegistrationRc: k.vehicleRegistrationRc || '',
+          bankAccountName: k.bankAccountName || user?.name || '',
+          bankAccountNumber: k.bankAccountNumber || '',
+          bankIfsc: k.bankIfsc || '',
+          bankName: k.bankName || '',
+          upiId: k.upiId || user?.ownerProfile?.bankDetails?.upiId || '',
+        });
+      }
+      if (ticketsData.success) {
+        setOwnerTickets(ticketsData.tickets || []);
       }
     } catch (err) {
       if (!isBackground) showToast(t('Failed to load data', 'डेटा लोड करने में समस्या आई'), 'error');
@@ -318,8 +414,9 @@ export default function OwnerDashboard({
 
     setUploadingImage(true);
     try {
-      const uploadedUrl = await uploadSingleFile(file, token);
-      setCarForm((prev) => ({ ...prev, mainImage: uploadedUrl }));
+      const res = await uploadSingleFile(file, token);
+      const url = cleanFileUrl(res);
+      setCarForm((prev) => ({ ...prev, mainImage: url }));
       showToast(t('Photo uploaded successfully', 'फोटो सफलतापूर्वक अपलोड हो गई!'), 'success');
     } catch (err) {
       showToast(err.message || t('Upload failed', 'फोटो अपलोड नहीं हो पाई'), 'error');
@@ -328,8 +425,12 @@ export default function OwnerDashboard({
     }
   };
 
-  // Open Add Car Modal
+  // Open Add Car Modal with Anti-Fraud KYC verification check
   const handleOpenAddCar = () => {
+    if (isKycEnforced && kycData?.status !== 'verified') {
+      setShowKycRequiredModal(true);
+      return;
+    }
     setIsEditing(false);
     setEditingCarId(null);
     setCarForm(initialCarForm);
@@ -344,6 +445,9 @@ export default function OwnerDashboard({
       name: car.name || '',
       brand: car.brand || 'Standard',
       model: car.model || '2024',
+      registrationNumber: car.registrationNumber || '',
+      rcDocument: car.rcDocument || '',
+      insuranceDocument: car.insuranceDocument || '',
       perKm: car.pricing?.perKm ?? car.pricing?.extraKmRate ?? '',
       perHour: car.pricing?.perHour ?? '',
       weddingRate: car.pricing?.weddingRate ?? '',
@@ -361,6 +465,175 @@ export default function OwnerDashboard({
       paymentMethods: car.paymentMethods?.length ? car.paymentMethods : ['cod', 'online'],
     });
     setCarModalOpen(true);
+  };
+
+  // Submit KYC handler
+  const handleSubmitKYC = async (e) => {
+    e.preventDefault();
+    const frontUrl = cleanFileUrl(kycForm.documentFront);
+    if (!kycForm.legalName.trim() || !kycForm.idNumber.trim() || !frontUrl) {
+      showToast(t('Please fill all required KYC fields and upload ID document', 'कृपया सभी आवश्यक KYC फ़ील्ड भरें और पहचान पत्र अपलोड करें'), 'error');
+      return;
+    }
+
+    try {
+      setKycSubmitting(true);
+      const sanitizedPayload = {
+        ...kycForm,
+        documentFront: frontUrl,
+        documentBack: cleanFileUrl(kycForm.documentBack),
+        panDocument: cleanFileUrl(kycForm.panDocument),
+        drivingLicense: cleanFileUrl(kycForm.drivingLicense),
+        vehicleRegistrationRc: cleanFileUrl(kycForm.vehicleRegistrationRc),
+      };
+      const res = await fetch('/api/owners/kyc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(sanitizedPayload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          t(
+            'KYC submitted successfully! Admin will match and verify details within 2-4 hours.',
+            'KYC सफलतापूर्वक सबमिट हो गई है! एडमिन 2-4 घंटे में विवरण मैच करके सत्यापित करेंगे।'
+          ),
+          'success'
+        );
+        setKycData(data.kyc);
+      } else {
+        showToast(data.message || 'Failed to submit KYC', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setKycSubmitting(false);
+    }
+  };
+
+  // Submit Support Problem Ticket handler (Flipkart-Style)
+  const handleCreateSupportTicket = async (e) => {
+    e.preventDefault();
+    if (!newTicketForm.subject.trim() || !newTicketForm.description.trim()) {
+      showToast(t('Please enter subject and description', 'कृपया विषय और समस्या का विवरण भरें'), 'error');
+      return;
+    }
+
+    try {
+      setSubmittingTicket(true);
+      const res = await fetch('/api/support/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: user?.name || 'Fleet Partner',
+          phone: user?.phone || '',
+          email: user?.email || '',
+          category: newTicketForm.category,
+          subject: newTicketForm.subject.trim(),
+          description: newTicketForm.description.trim(),
+          priority: newTicketForm.priority,
+          bookingId: newTicketForm.bookingId ? newTicketForm.bookingId.trim() : undefined,
+          attachments: newTicketForm.attachment ? [newTicketForm.attachment] : [],
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          t(
+            `Support Ticket #${data.ticket?.ticketId} created! Admin has been notified.`,
+            `सपोर्ट टिकट #${data.ticket?.ticketId} दर्ज हो गया है! एडमिन को सूचित कर दिया गया है।`
+          ),
+          'success'
+        );
+        setTicketModalOpen(false);
+        setNewTicketForm({
+          category: 'Booking Issue',
+          subject: '',
+          description: '',
+          priority: 'medium',
+          bookingId: '',
+          attachment: '',
+        });
+        fetchDashboardData();
+        if (data.whatsAppShareUrl) {
+          window.open(data.whatsAppShareUrl, '_blank', 'noopener,noreferrer');
+        }
+      } else {
+        showToast(data.message || 'Failed to register ticket', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSubmittingTicket(false);
+    }
+  };
+
+  // Upload KYC Document Handler
+  const handleKycDocUpload = async (field, file) => {
+    if (!file) return;
+    setUploadingDocField(field);
+    try {
+      const res = await uploadSingleFile(file, token);
+      const url = cleanFileUrl(res);
+      setKycForm((prev) => ({ ...prev, [field]: url }));
+      showToast(t('Document uploaded successfully!', 'दस्तावेज़ सफलतापूर्वक अपलोड हो गया!'), 'success');
+    } catch (err) {
+      showToast(err.message || t('Upload failed', 'अपलोड नहीं हो सका'), 'error');
+    } finally {
+      setUploadingDocField(null);
+    }
+  };
+
+  // Upload Car Document Handler (RC / Insurance)
+  const handleCarDocUpload = async (field, file) => {
+    if (!file) return;
+    setUploadingDocField(field);
+    try {
+      const res = await uploadSingleFile(file, token);
+      const url = cleanFileUrl(res);
+      setCarForm((prev) => ({ ...prev, [field]: url }));
+      showToast(t('Vehicle document uploaded!', 'गाड़ी का दस्तावेज़ अपलोड हो गया!'), 'success');
+    } catch (err) {
+      showToast(err.message || t('Upload failed', 'अपलोड नहीं हो सका'), 'error');
+    } finally {
+      setUploadingDocField(null);
+    }
+  };
+
+  // Send Follow-up Message to Support Ticket
+  const handleSendTicketReply = async (ticketId) => {
+    if (!ticketReplyText.trim()) return;
+    setSendingTicketReply(true);
+    try {
+      const res = await fetch(`/api/support/tickets/${ticketId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: ticketReplyText.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(t('Message sent to admin', 'संदेश एडमिन को भेज दिया गया'), 'success');
+        setTicketReplyText('');
+        setSelectedTicketForView(data.ticket);
+        fetchDashboardData(true);
+      } else {
+        showToast(data.message || 'Failed to send reply', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSendingTicketReply(false);
+    }
   };
 
   // Save Car (Add or Edit) with robust coordinates fallback
@@ -396,10 +669,14 @@ export default function OwnerDashboard({
     }
 
     try {
+      const mainImageUrl = cleanFileUrl(carForm.mainImage) || '/brand/ras-logo-primary.svg';
       const payload = {
         name: carForm.name.trim(),
         brand: carForm.brand.trim() || 'Standard',
         model: carForm.model.trim() || '2024',
+        registrationNumber: String(carForm.registrationNumber || '').trim().toUpperCase(),
+        rcDocument: cleanFileUrl(carForm.rcDocument),
+        insuranceDocument: cleanFileUrl(carForm.insuranceDocument),
         perKm,
         pricing: {
           perKm,
@@ -423,9 +700,9 @@ export default function OwnerDashboard({
         fuelIncluded: Boolean(carForm.fuelIncluded),
         seatingCapacity: Number(carForm.seatingCapacity) || 5,
         fuelType: carForm.fuelType || 'Diesel',
-        mainImage: carForm.mainImage.trim() || '/brand/ras-logo-primary.svg',
+        mainImage: mainImageUrl,
         images: {
-          main: carForm.mainImage.trim() || '/brand/ras-logo-primary.svg',
+          main: mainImageUrl,
         },
         description: carForm.description.trim() || 'Well maintained, verified chauffeur driven vehicle.',
         paymentMethods: carForm.paymentMethods.length ? carForm.paymentMethods : ['cod', 'online'],
@@ -454,6 +731,9 @@ export default function OwnerDashboard({
         setCarModalOpen(false);
         fetchDashboardData();
       } else {
+        if (data.requireKyc) {
+          setShowKycRequiredModal(true);
+        }
         showToast(data.message || t('Save failed', 'गाड़ी सेव नहीं हो सकी'), 'error');
       }
     } catch (err) {
@@ -766,6 +1046,273 @@ export default function OwnerDashboard({
             )}
           </div>
         </div>
+
+        {/* 🛡️ PROMINENT ANTI-FRAUD KYC STATUS BANNER */}
+        {kycData?.status === 'verified' ? (
+          <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-3xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-200 shadow-xl">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400">
+                    ✓ {t('KYC Verified Fleet Partner', 'सत्यापित पार्टनर (KYC Approved)')}
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    {t('Anti-Fraud Compliant', 'सुरक्षित व प्रमाणित')}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {t('Your identity, vehicle documents, and bank payout account are verified. Multiple vehicle listings are active.', 'आपकी पहचान, गाड़ी के दस्तावेज और बैंक खाता सत्यापित हैं। आप कई गाड़ियाँ लिस्ट कर सकते हैं।')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('kyc')}
+              className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl transition text-center shrink-0 cursor-pointer"
+            >
+              {t('View KYC Record', 'केवाईसी रिकॉर्ड देखें')}
+            </button>
+          </div>
+        ) : kycData?.status === 'pending' ? (
+          <div className="bg-amber-950/40 border border-amber-500/40 rounded-3xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 shadow-xl">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 animate-pulse">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                    ⏳ {t('KYC Verification Under Review', 'केवाईसी सत्यापन प्रक्रिया में है')}
+                  </span>
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                    {t('Admin Match in Progress', 'एडमिन जांच जारी')}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {t('Admin is cross-matching your Legal Name, Bank Account, and Vehicle RC. Listing new cars will activate upon verification.', 'एडमिन आपके नाम, बैंक खाते और गाड़ी की आरसी की जांच कर रहे हैं। सत्यापन के बाद नई गाड़ियाँ सक्रिय हो जाएँगी।')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('kyc')}
+              className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-xl transition text-center shrink-0 cursor-pointer"
+            >
+              {t('Track KYC Status', 'जांच स्थिति देखें')}
+            </button>
+          </div>
+        ) : kycData?.status === 'rejected' ? (
+          <div className="bg-rose-950/50 border border-rose-500/50 rounded-3xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-200 shadow-xl">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-400">
+                    ⚠️ {t('KYC Verification Rejected by Admin', 'केवाईसी सत्यापन अस्वीकार हो गया')}
+                  </span>
+                  <span className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-rose-500/30">
+                    {t('ACTION NEEDED', 'सुधार आवश्यक')}
+                  </span>
+                </div>
+                <p className="text-xs text-rose-200 mt-0.5 font-semibold">
+                  {t('Reason:', 'कारण:')} {kycData?.rejectionReason || t('Detail mismatch or unreadable document.', 'नाम या बैंक खाता मैच नहीं हुआ या दस्तावेज साफ़ नहीं था।')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('kyc')}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl transition text-center shrink-0 shadow-lg cursor-pointer"
+            >
+              {t('Fix & Re-Submit KYC', 'सुधारें और दोबारा भेजें')}
+            </button>
+          </div>
+        ) : !isKycEnforced ? (
+          <div className="bg-gradient-to-r from-blue-950/50 via-slate-900 to-indigo-950/50 border border-blue-500/40 rounded-3xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-200 shadow-xl">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
+                <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-blue-400">
+                    ✨ {t('KYC Verification Optional', 'केवाईसी सत्यापन वर्तमान में वैकल्पिक है')}
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    {t('Direct Listing Active', 'सीधी लिस्टिंग उपलब्ध')}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {t('Admin has currently set KYC as optional. You can add and list vehicles directly without waiting! You can still submit KYC documents anytime for a verified badge.', 'एडमिन ने फिलहाल केवाईसी को वैकल्पिक किया हुआ है। आप तुरंत अपनी गाड़ियाँ जोड़ सकते हैं! सत्यापित पार्टनर बैज के लिए आप कभी भी दस्तावेज़ भेज सकते हैं।')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleOpenAddCar}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl transition text-center shrink-0 shadow-lg cursor-pointer"
+              >
+                {t('+ Add Vehicle Now', '+ अभी गाड़ी जोड़ें')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('kyc')}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition text-center shrink-0 border border-slate-700 cursor-pointer"
+              >
+                {t('Submit KYC (Optional)', 'केवाईसी भेजें (वैकल्पिक)')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/60 border border-amber-500/40 rounded-3xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 shadow-xl">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                    🛡️ {t('Anti-Fraud KYC Verification Mandatory', 'धोखाधड़ी से सुरक्षा — KYC अनिवार्य')}
+                  </span>
+                  <span className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-rose-500/30">
+                    {t('REQUIRED TO LIST CARS', 'गाड़ी जोड़ने के लिए जरूरी')}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {t('To prevent phantom or duplicate car listings, all partners listing multiple vehicles must verify Aadhaar/PAN, Vehicle RC, and Payout Bank Details.', 'प्लेटफॉर्म पर फर्जी गाड़ियाँ रोकने के लिए कार मालिक का पहचान पत्र, आरसी और बैंक खाता सत्यापन अनिवार्य है।')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('kyc')}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl transition text-center shrink-0 shadow-lg cursor-pointer active:scale-95"
+            >
+              {t('Complete KYC Now →', 'अभी KYC पूरा करें →')}
+            </button>
+          </div>
+        )}
+
+        {/* 🎛️ DASHBOARD NAVIGATION TABS BAR */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 mb-6 border-b border-slate-800">
+          <button
+            type="button"
+            onClick={() => setActiveTab('cars')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'cars'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <Car className="w-4 h-4" />
+            <span>{t('My Fleet', 'मेरी गाड़ियाँ')}</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'cars' ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-800 text-amber-400'
+              }`}
+            >
+              {myFleet.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('bookings')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'bookings'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>{t('Bookings & Trips', 'बुकिंग्स व ट्रिप')}</span>
+            {pendingBookingsCount > 0 && (
+              <span className="px-2 py-0.5 bg-rose-500 text-white rounded-full text-[10px] font-black animate-pulse">
+                {pendingBookingsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('offers')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'offers'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <HandCoins className="w-4 h-4" />
+            <span>{t('Price Offers', 'रेट ऑफर्स')}</span>
+            {pendingOffersCount > 0 && (
+              <span className="px-2 py-0.5 bg-amber-400 text-slate-950 rounded-full text-[10px] font-black animate-pulse">
+                {pendingOffersCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('kyc')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'kyc'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>{t('KYC Verification', 'केवाईसी सत्यापन')}</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                kycData?.status === 'verified'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : kycData?.status === 'pending'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'bg-rose-500/20 text-rose-300'
+              }`}
+            >
+              {kycData?.status === 'verified' ? '✓ Verified' : kycData?.status === 'pending' ? '⏳ In Review' : '⚠️ Required'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('support')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'support'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>{t('Help & Problem Desk', 'समस्या हेल्पडेस्क')}</span>
+            {ownerTickets.length > 0 && (
+              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full text-[10px] font-black">
+                {ownerTickets.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'profile'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>{t('Agency Profile & UPI', 'एजेंसी प्रोफाइल व UPI')}</span>
+          </button>
+        </div>
+
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1696,6 +2243,718 @@ export default function OwnerDashboard({
               </div>
             </form>
           </div>
+        ) : activeTab === 'kyc' ? (
+          /* =================================================================== */
+          /* TAB 5: ANTI-FRAUD KYC VERIFICATION & AUDIT MATCH                    */
+          /* =================================================================== */
+          <div className="max-w-4xl mx-auto space-y-6 text-white">
+            {/* Header Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <ShieldCheck className="w-7 h-7 stroke-[2.5]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+                      {t('Fraud Elimination & Safety Protocol', 'सुरक्षा व एंटी-फ्रॉड सत्यापन')}
+                    </span>
+                    <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-700">
+                      v2.4
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black font-heading text-white">
+                    {t('Car Owner KYC Verification', 'कार मालिक KYC सत्यापन')}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                    {t(
+                      'To eliminate fraud, all fleet partners listing vehicles must verify Legal Identity, Vehicle RC, and Payout Bank Details. Admin verifies and matches details before activating cars.',
+                      'धोखाधड़ी रोकने के लिए गाड़ी लिस्ट करने से पहले मालिक का आधार/पैन, आरसी और बैंक खाता सत्यापित किया जाता है।'
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl font-black text-xs uppercase tracking-wider border shadow-lg ${
+                    kycData?.status === 'verified'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-950/50'
+                      : kycData?.status === 'pending'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-950/50'
+                      : kycData?.status === 'rejected'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-rose-950/50'
+                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                  }`}
+                >
+                  {kycData?.status === 'verified' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+                  {kycData?.status === 'pending' && <Clock className="w-4 h-4 text-amber-400 animate-spin" />}
+                  {kycData?.status === 'rejected' && <XCircle className="w-4 h-4 text-rose-400" />}
+                  {(!kycData?.status || kycData?.status === 'not_submitted') && <ShieldAlert className="w-4 h-4 text-amber-400" />}
+                  <span>
+                    {kycData?.status === 'verified'
+                      ? t('KYC Verified & Compliant', 'केवाईसी सत्यापित')
+                      : kycData?.status === 'pending'
+                      ? t('Under Admin Review', 'समीक्षा में है')
+                      : kycData?.status === 'rejected'
+                      ? t('Verification Rejected', 'अस्वीकृत')
+                      : t('KYC Not Submitted', 'सबमिट नहीं है')}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* Verification Status Details Card */}
+            {kycData && (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{t('Admin Audit Status & Verification Checklist', 'एडमिन ऑडिट व जांच चेकलिस्ट')}</span>
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block mb-1">{t('Legal ID Document', 'पहचान पत्र')}</span>
+                    <span className={`font-bold flex items-center gap-1.5 ${kycData.adminAudit?.idDocumentValid ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {kycData.adminAudit?.idDocumentValid ? '✓ Validated' : '⏳ Pending'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block mb-1">{t('PAN / License', 'पैन / ड्राइविंग लाइसेंस')}</span>
+                    <span className={`font-bold flex items-center gap-1.5 ${kycData.adminAudit?.drivingLicenseValid ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {kycData.adminAudit?.drivingLicenseValid ? '✓ Verified' : '⏳ Pending'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block mb-1">{t('Vehicle RC Match', 'गाड़ी आरसी मैच')}</span>
+                    <span className={`font-bold flex items-center gap-1.5 ${kycData.adminAudit?.vehicleRcMatched ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {kycData.adminAudit?.vehicleRcMatched ? '✓ Matched' : '⏳ Pending'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block mb-1">{t('Bank Name Match', 'बैंक नाम मिलान')}</span>
+                    <span className={`font-bold flex items-center gap-1.5 ${kycData.adminAudit?.bankNameMatched ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {kycData.adminAudit?.bankNameMatched ? '✓ Matched' : '⏳ Pending'}
+                    </span>
+                  </div>
+                </div>
+
+                {kycData.status === 'rejected' && (
+                  <div className="bg-rose-950/60 border border-rose-500/60 rounded-2xl p-4 text-xs space-y-1">
+                    <div className="font-bold text-rose-300 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-400" />
+                      <span>{t('Rejection Reason from Admin:', 'एडमिन द्वारा अस्वीकृति का कारण:')}</span>
+                    </div>
+                    <p className="text-rose-100 font-semibold pl-6">
+                      {kycData.rejectionReason || t('Information mismatch or unclear documents.', 'दस्तावेज स्पष्ट नहीं थे या नाम मैच नहीं हुआ।')}
+                    </p>
+                    <p className="text-rose-300 text-[11px] pl-6 pt-1">
+                      {t('Please update the form below with clear photos and matching name, then re-submit.', 'कृपया नीचे दिए गए फ़ॉर्म में सही जानकारी और साफ़ फोटो लगाकर दोबारा सबमिट करें।')}
+                    </p>
+                  </div>
+                )}
+
+                {kycData.adminAudit?.notes && (
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-xs text-slate-300">
+                    <strong className="text-amber-400">{t('Admin Audit Note:', 'एडमिन नोट:')}</strong> {kycData.adminAudit.notes}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* KYC Submission Form */}
+            <form onSubmit={handleSubmitKYC} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+              {/* SECTION 1: LEGAL IDENTITY */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black">1</span>
+                    <span>{t('Legal Identity & Govt ID', 'कानूनी पहचान व सरकारी प्रमाण पत्र')}</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400">{t('Must match official records', 'सरकारी रिकॉर्ड से मैच होना जरूरी')}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">
+                      {t('Legal Full Name (As per Govt ID) *', 'पूरा नाम (पहचान पत्र अनुसार) *')}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Kumar Sharma"
+                      value={kycForm.legalName}
+                      onChange={(e) => setKycForm({ ...kycForm, legalName: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-bold focus:border-amber-500 outline-none"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {t('Must match Bank Account Holder Name exactly to prevent payout fraud.', 'बैंक खाते के नाम से बिल्कुल मेल खाना चाहिए।')}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">{t('ID Document Type *', 'पहचान पत्र का प्रकार *')}</label>
+                    <select
+                      value={kycForm.idType}
+                      onChange={(e) => setKycForm({ ...kycForm, idType: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-bold focus:border-amber-500 outline-none"
+                    >
+                      <option value="Aadhaar Card">{t('Aadhaar Card', 'आधार कार्ड')}</option>
+                      <option value="Voter ID">{t('Voter ID Card', 'वोटर आईडी कार्ड')}</option>
+                      <option value="Passport">{t('Passport', 'पासपोर्ट')}</option>
+                      <option value="Driving License">{t('Driving License', 'ड्राइविंग लाइसेंस')}</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">
+                      {t('ID Document Number *', 'पहचान पत्र का नंबर *')}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 1234 5678 9012"
+                      value={kycForm.idNumber}
+                      onChange={(e) => setKycForm({ ...kycForm, idNumber: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-mono font-bold focus:border-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">
+                      {t('PAN Card Number (Optional)', 'पैन कार्ड नंबर (वैकल्पिक)')}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ABCDE1234F"
+                      value={kycForm.panNumber}
+                      onChange={(e) => setKycForm({ ...kycForm, panNumber: e.target.value.toUpperCase() })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-mono font-bold uppercase focus:border-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* ID Document Photo Uploads */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {/* Front Side */}
+                  <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                    <label className="block text-slate-200 text-xs font-black">
+                      {t('ID Document Front Photo *', 'पहचान पत्र का सामने का फोटो *')}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {cleanFileUrl(kycForm.documentFront) ? (
+                        <img
+                          src={cleanFileUrl(kycForm.documentFront)}
+                          alt="Front Preview"
+                          className="w-16 h-12 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                      ) : (
+                        <div className="w-16 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
+                          ID Front
+                        </div>
+                      )}
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingDocField === 'documentFront' ? t('Uploading...', 'अपलोड...') : t('Upload Front', 'फोटो अपलोड करें')}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleKycDocUpload('documentFront', e.target.files?.[0])}
+                          disabled={uploadingDocField === 'documentFront'}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Back Side */}
+                  <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                    <label className="block text-slate-200 text-xs font-black">
+                      {t('ID Document Back Photo (Optional)', 'पहचान पत्र का पिछला हिस्सा (वैकल्पिक)')}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {cleanFileUrl(kycForm.documentBack) ? (
+                        <img
+                          src={cleanFileUrl(kycForm.documentBack)}
+                          alt="Back Preview"
+                          className="w-16 h-12 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                      ) : (
+                        <div className="w-16 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
+                          ID Back
+                        </div>
+                      )}
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingDocField === 'documentBack' ? t('Uploading...', 'अपलोड...') : t('Upload Back', 'फोटो अपलोड करें')}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleKycDocUpload('documentBack', e.target.files?.[0])}
+                          disabled={uploadingDocField === 'documentBack'}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: DRIVING LICENSE & VEHICLE RC */}
+              <div className="space-y-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black">2</span>
+                    <span>{t('Driving License & Fleet Vehicle RC', 'ड्राइविंग लाइसेंस व गाड़ी की आरसी')}</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400">{t('Vehicle Ownership Proof', 'गाड़ी का मालिकाना हक')}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">{t('Driving License Number', 'ड्राइविंग लाइसेंस नंबर')}</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. DL-0420110012345"
+                      value={kycForm.drivingLicenseNumber}
+                      onChange={(e) => setKycForm({ ...kycForm, drivingLicenseNumber: e.target.value.toUpperCase() })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-mono font-bold uppercase focus:border-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">
+                      {t('Primary Vehicle RC / Plate Number *', 'मुख्य गाड़ी का रजिस्ट्रेशन / RC नंबर *')}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. DL 01 AB 1234"
+                      value={kycForm.rcNumber}
+                      onChange={(e) => setKycForm({ ...kycForm, rcNumber: e.target.value.toUpperCase() })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-amber-300 font-mono font-bold uppercase focus:border-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload RC & Driving License Documents */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                    <label className="block text-slate-200 text-xs font-black">
+                      {t('Vehicle RC Document Photo *', 'गाड़ी की RC फोटो *')}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {cleanFileUrl(kycForm.vehicleRegistrationRc) ? (
+                        <img
+                          src={cleanFileUrl(kycForm.vehicleRegistrationRc)}
+                          alt="RC Preview"
+                          className="w-16 h-12 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                      ) : (
+                        <div className="w-16 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
+                          RC Photo
+                        </div>
+                      )}
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingDocField === 'vehicleRegistrationRc' ? t('Uploading...', 'अपलोड...') : t('Upload RC', 'RC फोटो अपलोड करें')}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleKycDocUpload('vehicleRegistrationRc', e.target.files?.[0])}
+                          disabled={uploadingDocField === 'vehicleRegistrationRc'}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                    <label className="block text-slate-200 text-xs font-black">
+                      {t('Driving License Photo (Optional)', 'ड्राइविंग लाइसेंस फोटो (वैकल्पिक)')}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {cleanFileUrl(kycForm.drivingLicense) ? (
+                        <img
+                          src={cleanFileUrl(kycForm.drivingLicense)}
+                          alt="DL Preview"
+                          className="w-16 h-12 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                      ) : (
+                        <div className="w-16 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
+                          DL Photo
+                        </div>
+                      )}
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingDocField === 'drivingLicense' ? t('Uploading...', 'अपलोड...') : t('Upload DL', 'DL फोटो अपलोड करें')}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleKycDocUpload('drivingLicense', e.target.files?.[0])}
+                          disabled={uploadingDocField === 'drivingLicense'}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: PAYOUT BANK ACCOUNT DETAILS */}
+              <div className="space-y-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black">3</span>
+                    <span>{t('Payout Bank Account & UPI Details', 'पेआउट बैंक खाता व UPI')}</span>
+                  </h3>
+                  <span className="text-[11px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800">
+                    {t('Direct Settlement', 'सीधा भुगतान')}
+                  </span>
+                </div>
+
+                <div className="bg-amber-950/30 border border-amber-500/30 rounded-2xl p-3.5 text-xs text-amber-200">
+                  ⚠️ <strong>{t('Anti-Fraud Match Rule:', 'धोखाधड़ी से सुरक्षा नियम:')}</strong> {t('The Bank Account Holder Name must match your Legal Full Name. Customer advances and rental earnings will ONLY be credited to this verified account.', 'बैंक खाता धारक का नाम आपके पहचान पत्र के नाम से मैच होना अनिवार्य है। बुकिंग का एडवांस केवल इसी खाते में भेजा जाएगा।')}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">
+                      {t('Bank Account Holder Name *', 'खाता धारक का नाम (पासबुक अनुसार) *')}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Kumar Sharma"
+                      value={kycForm.bankAccountName}
+                      onChange={(e) => setKycForm({ ...kycForm, bankAccountName: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-bold focus:border-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">{t('Bank Name *', 'बैंक का नाम *')}</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. State Bank of India, HDFC Bank"
+                      value={kycForm.bankName}
+                      onChange={(e) => setKycForm({ ...kycForm, bankName: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-bold focus:border-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">{t('Bank Account Number *', 'बैंक खाता नंबर *')}</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 50100234567890"
+                      value={kycForm.bankAccountNumber}
+                      onChange={(e) => setKycForm({ ...kycForm, bankAccountNumber: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-mono font-bold focus:border-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1.5">{t('Bank IFSC Code *', 'बैंक IFSC कोड *')}</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. SBIN0001234"
+                      value={kycForm.bankIfsc}
+                      onChange={(e) => setKycForm({ ...kycForm, bankIfsc: e.target.value.toUpperCase() })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-white font-mono font-bold uppercase focus:border-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-1.5">{t('Payout UPI ID (Google Pay / PhonePe / Paytm)', 'UPI ID (गूगल पे / फोनपे / पेटीएम)')}</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 9918272164@okaxis or name@upi"
+                    value={kycForm.upiId}
+                    onChange={(e) => setKycForm({ ...kycForm, upiId: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-amber-300 font-mono font-bold focus:border-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-[11px] text-slate-400">
+                  {t(
+                    '🔒 All documents are stored securely with 256-bit encryption and reviewed solely by authorized Admin.',
+                    '🔒 आपके सभी दस्तावेज 256-बिट एन्क्रिप्शन के साथ पूरी तरह सुरक्षित रखे जाते हैं।'
+                  )}
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={kycSubmitting}
+                  className="px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
+                >
+                  {kycSubmitting ? (
+                    <span>{t('Submitting KYC...', 'केवाईसी सबमिट हो रही है...')}</span>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
+                      <span>
+                        {kycData?.status === 'rejected'
+                          ? t('Re-Submit Corrected KYC', 'सुधारकर दोबारा सबमिट करें')
+                          : t('Submit KYC for Verification', 'सत्यापन के लिए KYC सबमिट करें')}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : activeTab === 'support' ? (
+          /* =================================================================== */
+          /* TAB 6: FLIPKART-STYLE HELPDESK & PROBLEM QUERY DESK                */
+          /* =================================================================== */
+          <div className="max-w-5xl mx-auto space-y-6 text-white">
+            {/* Header */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                  <MessageSquare className="w-7 h-7 stroke-[2.5]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
+                      {t('Flipkart-Style 24x7 Problem Desk', '24x7 समस्या हेल्पडेस्क')}
+                    </span>
+                    <span className="bg-blue-500/20 text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/30">
+                      Direct Admin Alert
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black font-heading text-white">
+                    {t('Fleet Partner Problem & Help Query', 'पार्टनर समस्या व सहायता केंद्र')}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                    {t(
+                      'Facing issues with booking payouts, passenger disputes, or ride cancellations? Raise a problem query. Admin gets instant alerts and provides official resolution replies.',
+                      'बुकिंग, पेमेंट या सवारी से जुड़ी किसी भी समस्या के लिए टिकट दर्ज करें। एडमिन को तुरंत सूचना जाएगी और समाधान मिलेगा।'
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTicketModalOpen(true)}
+                  className="px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow-lg shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>{t('+ Raise Problem Query', '+ नई समस्या दर्ज करें')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Contact Hotline Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <a
+                href={`tel:${company.phone || '9918272164'}`}
+                className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 p-4 rounded-2xl flex items-center gap-3.5 transition group shadow-lg"
+              >
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Phone className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">{t('24/7 Admin Helpline', 'एडमिन फ़ोन हेल्पलाइन')}</span>
+                  <p className="text-sm font-black text-white group-hover:text-amber-400 transition">
+                    {company.phone || '+91 9918272164'}
+                  </p>
+                </div>
+              </a>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openWhatsAppMessage(
+                    company.phone || '9918272164',
+                    `Namaste RAS Brother Admin, I am fleet partner ${user?.name || ''} (Phone: ${user?.phone || ''}). I need direct assistance with my vehicle fleet.`
+                  )
+                }
+                className="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-4 rounded-2xl flex items-center gap-3.5 transition group shadow-lg text-left cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">{t('Direct WhatsApp Support', 'सीधा व्हाट्सएप सपोर्ट')}</span>
+                  <p className="text-sm font-black text-white group-hover:text-emerald-400 transition">
+                    {t('Chat Directly with Admin Desk', 'एडमिन से व्हाट्सएप पर बात करें')}
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {/* Tickets Listing */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <span>{t('Your Problem Query Tickets', 'आपकी दर्ज की गई समस्याएं')}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-mono font-bold">
+                    {ownerTickets.length}
+                  </span>
+                </h3>
+              </div>
+
+              {ownerTickets.length === 0 ? (
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
+                  <div className="w-14 h-14 bg-slate-800 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
+                    <CheckCircle className="w-7 h-7 text-emerald-400" />
+                  </div>
+                  <h4 className="text-base font-black text-white">{t('No Problem Queries Logged', 'कोई समस्या दर्ज नहीं है')}</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    {t(
+                      'All your bookings and fleet operations are active and running smoothly. If you ever face an issue, click below to raise a problem query.',
+                      'आपकी सभी बुकिंग्स और गाड़ियाँ बढ़िया चल रही हैं। कोई परेशानी होने पर नया टिकट बनाएं।'
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTicketModalOpen(true)}
+                    className="mt-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer"
+                  >
+                    {t('Raise Problem Query', 'समस्या दर्ज करें')}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {ownerTickets.map((ticket) => (
+                    <div
+                      key={ticket._id}
+                      className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4 transition hover:border-slate-700"
+                    >
+                      {/* Top Header of Ticket */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-black text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
+                            #{ticket.ticketId}
+                          </span>
+                          <span className="bg-slate-800 text-slate-300 text-xs font-bold px-2.5 py-1 rounded-xl">
+                            {ticket.category}
+                          </span>
+                          <span
+                            className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                              ticket.priority === 'urgent'
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                : ticket.priority === 'high'
+                                ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                          >
+                            {ticket.priority}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-black uppercase px-3 py-1 rounded-full border ${
+                              ticket.status === 'resolved'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                : ticket.status === 'in_progress'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                : ticket.status === 'closed'
+                                ? 'bg-slate-800 text-slate-400 border-slate-700'
+                                : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                            }`}
+                          >
+                            {ticket.status}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {new Date(ticket.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Subject & Description */}
+                      <div className="space-y-1.5">
+                        <h4 className="text-base font-black text-white">{ticket.subject}</h4>
+                        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                          {ticket.description}
+                        </p>
+                        {ticket.bookingId && (
+                          <div className="pt-1">
+                            <span className="text-[11px] text-amber-300 font-bold bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                              📋 Linked Booking: #{ticket.bookingId}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Admin Official Resolution Box (If resolved or reply exists) */}
+                      {ticket.adminResponse?.message && (
+                        <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between text-emerald-400 font-black">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle className="w-4 h-4" />
+                              <span>{t('Official Admin Resolution', 'एडमिन समाधान')}</span>
+                            </span>
+                            <span className="text-[10px] text-emerald-300 font-normal">
+                              {ticket.adminResponse.resolvedAt
+                                ? new Date(ticket.adminResponse.resolvedAt).toLocaleDateString('en-IN', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : ''}
+                            </span>
+                          </div>
+                          <p className="text-emerald-100 font-semibold leading-relaxed">
+                            {ticket.adminResponse.message}
+                          </p>
+                          {ticket.adminResponse.resolvedBy && (
+                            <span className="text-[10px] text-emerald-300 block pt-1">
+                              — {ticket.adminResponse.resolvedBy}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTicketForView(ticket)}
+                          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>
+                            {t('Discussion Thread', 'चर्चा देखें')} ({ticket.messages?.length || 0})
+                          </span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openSupportTicketWhatsApp(ticket, company.phone || '9918272164', company)}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center gap-1.5 shadow cursor-pointer active:scale-95"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>{t('WhatsApp Admin', 'व्हाट्सएप पर भेजें')}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         ) : null}
       </main>
 
@@ -1738,6 +2997,86 @@ export default function OwnerDashboard({
                   onChange={(e) => setCarForm({ ...carForm, name: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
                 />
+              </div>
+
+              {/* Anti-Fraud Vehicle Plate & RC Verification */}
+              <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-400 block text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>{t('Vehicle Registration & RC Verification', 'गाड़ी नंबर व आरसी सत्यापन')}</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-300 font-black bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    {t('Fraud Protection', 'एंटी-फ्रॉड')}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1 text-xs">
+                    {t('Vehicle Number Plate (RC Plate Number) *', 'गाड़ी का नंबर (RC नंबर) *')}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. DL 01 AB 1234 or UP 32 XX 5678"
+                    value={carForm.registrationNumber}
+                    onChange={(e) => setCarForm({ ...carForm, registrationNumber: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-amber-300 font-mono font-bold tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {t('Verified by admin against vehicle RC to prevent duplicate or phantom car listings.', 'फर्जी गाड़ी लिस्टिंग रोकने के लिए एडमिन इस नंबर को आरसी से मैच करेंगे।')}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold">
+                      {t('Vehicle RC Document Photo', 'गाड़ी की RC फोटो')}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingDocField === 'rcDocument' ? t('Uploading...', 'अपलोड...') : t('Upload RC', 'RC अपलोड करें')}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleCarDocUpload('rcDocument', e.target.files?.[0])}
+                          disabled={uploadingDocField === 'rcDocument'}
+                          className="hidden"
+                        />
+                      </label>
+                      {carForm.rcDocument && (
+                        <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" /> {t('Uploaded', 'अपलोड है')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold">
+                      {t('Insurance Certificate (Optional)', 'बीमा प्रमाण पत्र (वैकल्पिक)')}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 text-xs font-bold rounded-xl border border-slate-700 transition">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingDocField === 'insuranceDocument' ? t('Uploading...', 'अपलोड...') : t('Upload Insurance', 'बीमा अपलोड करें')}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleCarDocUpload('insuranceDocument', e.target.files?.[0])}
+                          disabled={uploadingDocField === 'insuranceDocument'}
+                          className="hidden"
+                        />
+                      </label>
+                      {carForm.insuranceDocument && (
+                        <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" /> {t('Uploaded', 'अपलोड है')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1908,9 +3247,9 @@ export default function OwnerDashboard({
               <div className="space-y-2">
                 <label className="text-slate-300 block mb-1">{t('Car Photo', 'गाड़ी की फोटो')}</label>
                 <div className="flex items-center gap-3">
-                  {carForm.mainImage ? (
+                  {cleanFileUrl(carForm.mainImage) ? (
                     <img
-                      src={carForm.mainImage}
+                      src={cleanFileUrl(carForm.mainImage)}
                       alt="Preview"
                       className="w-16 h-14 rounded-xl object-cover bg-slate-800 border border-slate-700"
                     />
@@ -2194,6 +3533,366 @@ export default function OwnerDashboard({
           onClose={() => setPassInvoiceModalOpen(false)}
           booking={selectedBookingForPass}
         />
+      )}
+
+      {/* MODAL 7: 🛡️ ANTI-FRAUD KYC REQUIRED MODAL INTERCEPT */}
+      {showKycRequiredModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-5 shadow-2xl text-white">
+            <div className="text-center space-y-3">
+              <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/40 text-amber-400 rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+                <ShieldCheck className="w-9 h-9 stroke-[2.5]" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                  {t('Anti-Fraud Security Policy', 'धोखाधड़ी से सुरक्षा नीति')}
+                </span>
+                <h3 className="font-black text-xl text-white font-heading">
+                  {t('KYC Verification Required', 'केवाईसी सत्यापन आवश्यक है')}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {t(
+                  'To prevent phantom cars, duplicate plate listings, and payout fraud, all vehicle owners must complete KYC verification before listing cars on RAS Brother.',
+                  'फर्जी गाड़ियाँ और धोखाधड़ी रोकने के लिए गाड़ी लिस्ट करने से पहले मालिक का आधार/पैन, आरसी और बैंक खाता सत्यापित होना अनिवार्य है।'
+                )}
+              </p>
+            </div>
+
+            <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 space-y-2.5 text-xs text-slate-300">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                <span>{t('Zero Tolerance for Fraudulent Listings', 'फर्जी लिस्टिंग पर पूर्ण रोक')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                <span>{t('Admin matches Legal Name with Bank Account', 'नाम और बैंक खाते का मिलान')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                <span>{t('Vehicle RC verified to protect customer trust', 'आरसी से गाड़ी का नंबर सत्यापित')}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowKycRequiredModal(false);
+                  setActiveTab('kyc');
+                }}
+                className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow-xl transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
+                <span>{t('Proceed to Complete KYC Verification →', 'केवाईसी सत्यापन पूरा करें →')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowKycRequiredModal(false)}
+                className="w-full py-2.5 text-slate-400 hover:text-white text-xs font-bold transition cursor-pointer"
+              >
+                {t('Cancel & Do Later', 'बाद में करें')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 8: 🎧 FLIPKART-STYLE PROBLEM QUERY TICKET SUBMISSION */}
+      {ticketModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-black">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base sm:text-lg">
+                    {t('Raise a Problem Query', 'समस्या का टिकट दर्ज करें')}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {t('Instant alert sent to Admin like Flipkart helpdesk', 'फ्लिपकार्ट की तरह एडमिन को तुरंत सूचना जाएगी')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTicketModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSupportTicket} className="space-y-4 text-xs font-semibold">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 block mb-1">
+                    {t('Problem Category *', 'समस्या की श्रेणी *')}
+                  </label>
+                  <select
+                    value={newTicketForm.category}
+                    onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Booking Issue">{t('Booking Issue', 'बुकिंग समस्या')}</option>
+                    <option value="Payment / Refund">{t('Payment / Balance Settlement', 'पेमेंट या बकाया राशि')}</option>
+                    <option value="Vehicle Issue">{t('Vehicle Breakdown / Problem', 'गाड़ी में खराबी')}</option>
+                    <option value="Chauffeur / Driver Dispute">{t('Driver / Chauffeur Duty', 'ड्राइवर ड्यूटी समस्या')}</option>
+                    <option value="Account / KYC">{t('Account / KYC Verification', 'केवाईसी व खाता समस्या')}</option>
+                    <option value="Fraud / Safety Concern">{t('Fraud / Suspicious Rider Concern', 'धोखाधड़ी या सुरक्षा शंका')}</option>
+                    <option value="Other">{t('Other Inquiry', 'अन्य समस्या')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1">
+                    {t('Urgency Priority *', 'प्राथमिकता *')}
+                  </label>
+                  <select
+                    value={newTicketForm.priority}
+                    onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="urgent">🚨 {t('Urgent (Ride Currently Active)', 'अति आवश्यक (सफ़र चालू है)')}</option>
+                    <option value="high">🔴 {t('High Priority', 'उच्च प्राथमिकता')}</option>
+                    <option value="medium">🟡 {t('Medium Priority', 'सामान्य')}</option>
+                    <option value="low">⚪ {t('Low Priority', 'कम')}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1">
+                  {t('Subject / Problem Title *', 'समस्या का शीर्षक *')}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={t('e.g. Passenger refused remaining payment on arrival', 'उदा. ग्राहक ने बची हुई रकम देने से मना किया')}
+                  value={newTicketForm.subject}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, subject: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1">
+                  {t('Linked Booking ID (Optional)', 'संबंधित बुकिंग आईडी (वैकल्पिक)')}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 260842"
+                  value={newTicketForm.bookingId}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, bookingId: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1">
+                  {t('Describe Problem in Detail *', 'पूरी समस्या का विवरण लिखें *')}
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder={t('Explain clearly what happened and what help you need from Admin...', 'साफ़ शब्दों में लिखें कि क्या हुआ और आपको क्या सहायता चाहिए...')}
+                  value={newTicketForm.description}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, description: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"
+                />
+              </div>
+
+              {/* Notice */}
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-[11px] text-slate-300 flex items-center gap-2">
+                <span className="text-emerald-400 font-black">📲 Direct Alert:</span>
+                <span>{t('Creating ticket generates a unique ticket ID and provides instant WhatsApp connection with Admin.', 'टिकट बनते ही एडमिन को व्हाट्सएप व सिस्टम अलर्ट मिल जाएगा।')}</span>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={submittingTicket}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  {submittingTicket ? (
+                    <span>{t('Submitting Problem Query...', 'टिकट दर्ज हो रहा है...')}</span>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 stroke-[2.5]" />
+                      <span>{t('Register Ticket & Alert Admin Now', 'समस्या दर्ज करें व एडमिन को अलर्ट भेजें')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 9: 💬 TICKET DISCUSSION & ADMIN REPLY DRAWER */}
+      {selectedTicketForView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-black">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-black text-amber-400">
+                      #{selectedTicketForView.ticketId}
+                    </span>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                        selectedTicketForView.status === 'resolved'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : selectedTicketForView.status === 'in_progress'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                      }`}
+                    >
+                      {selectedTicketForView.status}
+                    </span>
+                  </div>
+                  <h3 className="font-black text-base text-white truncate max-w-sm">
+                    {selectedTicketForView.subject}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTicketForView(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Original Problem Query */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                {t('Original Problem Description', 'दर्ज की गई समस्या')}
+              </span>
+              <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-line">
+                {selectedTicketForView.description}
+              </p>
+            </div>
+
+            {/* Admin Official Resolution (If available) */}
+            {selectedTicketForView.adminResponse?.message && (
+              <div className="bg-emerald-950/50 border border-emerald-500/50 rounded-2xl p-4 text-xs space-y-1.5">
+                <div className="flex items-center justify-between text-emerald-400 font-black">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>{t('Official Resolution by Admin', 'एडमिन समाधान')}</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-300 font-normal">
+                    {selectedTicketForView.adminResponse.resolvedAt
+                      ? new Date(selectedTicketForView.adminResponse.resolvedAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                        })
+                      : ''}
+                  </span>
+                </div>
+                <p className="text-emerald-100 font-semibold leading-relaxed">
+                  {selectedTicketForView.adminResponse.message}
+                </p>
+                {selectedTicketForView.adminResponse.resolvedBy && (
+                  <span className="text-[10px] text-emerald-300 block pt-1">
+                    — {selectedTicketForView.adminResponse.resolvedBy}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Discussion Thread */}
+            <div className="space-y-3">
+              <span className="text-xs font-black text-slate-300 block">
+                {t('Discussion Thread', 'संदेश इतिहास')} ({selectedTicketForView.messages?.length || 0})
+              </span>
+
+              {(!selectedTicketForView.messages || selectedTicketForView.messages.length === 0) ? (
+                <p className="text-xs text-slate-500 italic text-center py-4">
+                  {t('No follow-up messages yet.', 'अभी कोई अतिरिक्त संदेश नहीं है।')}
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {selectedTicketForView.messages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-2xl text-xs space-y-1 ${
+                        msg.senderRole === 'admin'
+                          ? 'bg-amber-950/40 border border-amber-500/30 text-amber-100 mr-6'
+                          : 'bg-slate-800 text-slate-200 ml-6'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-[10px]">
+                        <span className={msg.senderRole === 'admin' ? 'text-amber-400' : 'text-slate-400'}>
+                          {msg.senderRole === 'admin' ? '👑 Admin Desk' : msg.senderName || 'You (Partner)'}
+                        </span>
+                        <span className="text-slate-500">
+                          {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="leading-relaxed">{msg.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Send Reply Box */}
+            <div className="pt-2 border-t border-slate-800 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder={t('Type a message or update to admin...', 'एडमिन के लिए संदेश लिखें...')}
+                  value={ticketReplyText}
+                  onChange={(e) => setTicketReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSendTicketReply(selectedTicketForView._id);
+                    }
+                  }}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSendTicketReply(selectedTicketForView._id)}
+                  disabled={sendingTicketReply || !ticketReplyText.trim()}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow transition cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => openSupportTicketWhatsApp(selectedTicketForView, company.phone || '9918272164', company)}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{t('Open in WhatsApp with Admin', 'एडमिन के साथ व्हाट्सएप पर खोलें')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTicketForView(null)}
+                  className="text-xs text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  {t('Close', 'बंद करें')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

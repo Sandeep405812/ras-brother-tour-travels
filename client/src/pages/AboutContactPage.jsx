@@ -33,29 +33,52 @@ export default function AboutContactPage({ mode = 'contact', onNavigate }) {
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/bookings/query', {
+      const res = await fetch('/api/support/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
-          message: form.message.trim(),
-          carName: '24/7 Concierge Support / Helpdesk',
+          category: 'Other',
+          subject: form.message.trim().slice(0, 70),
+          description: form.message.trim(),
+          priority: 'medium',
         }),
       });
       const data = await res.json();
       if (data.success) {
         showToast(
           t(
-            'Your query has been sent to Admin! Our team will call you within 15 minutes.',
-            'आपकी समस्या/पूछताछ एडमिन को भेज दी गई है! हमारी टीम 15 मिनट में आपसे संपर्क करेगी।'
+            `Support Ticket #${data.ticket?.ticketId} registered! Admin has been alerted like Flipkart helpdesk.`,
+            `सपोर्ट टिकट #${data.ticket?.ticketId} दर्ज हो गया है! एडमिन को तुरंत सूचना भेज दी गई है।`
           ),
           'success'
         );
+        if (data.whatsAppShareUrl) {
+          window.open(data.whatsAppShareUrl, '_blank', 'noopener,noreferrer');
+        }
         setForm({ name: '', email: '', phone: '', message: '' });
       } else {
-        showToast(data.message || 'Failed to submit query', 'error');
+        // Fallback to general query
+        const fallbackRes = await fetch('/api/bookings/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name.trim(),
+            phone: form.phone.trim(),
+            email: form.email.trim(),
+            message: form.message.trim(),
+            carName: '24/7 Concierge Support / Helpdesk',
+          }),
+        });
+        const fbData = await fallbackRes.json();
+        if (fbData.success) {
+          showToast(t('Your query has been sent to Admin!', 'आपकी पूछताछ एडमिन को भेज दी गई है!'), 'success');
+          setForm({ name: '', email: '', phone: '', message: '' });
+        } else {
+          showToast(data.message || 'Failed to submit query', 'error');
+        }
       }
     } catch (err) {
       showToast(err.message || 'Error submitting query', 'error');

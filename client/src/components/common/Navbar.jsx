@@ -161,6 +161,12 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
           icon: User,
         },
         {
+          label: t('🎧 Help & Problem Query', '🎧 सहायता व समस्या केंद्र'),
+          page: 'customer-dashboard',
+          params: { tab: 'support' },
+          icon: MessageSquare,
+        },
+        {
           label: t('📞 24x7 Helpdesk', '📞 सहायता केंद्र'),
           page: 'contact',
           icon: PhoneCall,
@@ -185,6 +191,12 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
           icon: Car,
         },
         {
+          label: t('🛡️ KYC Anti-Fraud Verification', '🛡️ केवाईसी सत्यापन'),
+          page: 'owner-dashboard',
+          params: { tab: 'kyc' },
+          icon: ShieldCheck,
+        },
+        {
           label: t('📋 Rental Orders & Trips', '📋 बुकिंग ऑर्डर्स'),
           page: 'owner-dashboard',
           params: { tab: 'bookings' },
@@ -201,6 +213,12 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
           page: 'owner-dashboard',
           params: { tab: 'add-car' },
           icon: PlusCircle,
+        },
+        {
+          label: t('🎧 Help & Problem Desk', '🎧 समस्या हेल्पडेस्क'),
+          page: 'owner-dashboard',
+          params: { tab: 'support' },
+          icon: MessageSquare,
         },
         {
           label: t('👤 Owner Profile & Agency', '👤 प्रोफाइल सेटिंग्स'),
@@ -254,6 +272,12 @@ export default function Navbar({ onNavigate, currentPage, pageParams = {} }) {
           page: 'admin-dashboard',
           params: { tab: 'kyc' },
           icon: CheckCircle,
+        },
+        {
+          label: t('🎧 Support Problem Helpdesk', '🎧 समस्या हेल्पडेस्क'),
+          page: 'admin-dashboard',
+          params: { tab: 'helpdesk' },
+          icon: MessageSquare,
         },
         {
           label: t('🎟️ Promo Coupons', '🎟️ डिस्काउंट कूपन'),

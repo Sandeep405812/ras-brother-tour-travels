@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useCart } from '../../context/CartContext';
+import { useCompany } from '../../context/CompanyContext';
 import LocationAutocomplete from '../common/LocationAutocomplete';
 import { resolveCoordinates, calculateHaversineDistance } from '../../utils/distanceCalculator';
 import {
@@ -30,6 +31,8 @@ import { uploadSingleFile } from '../../utils/imageUpload';
 export default function BulkBookingModal({ onNavigate }) {
   const { user, token } = useAuth();
   const { showToast } = useNotification();
+  const { company } = useCompany();
+  const upiId = company?.upiId || '9918272164@okaxis';
   const {
     cartItems,
     removeFromCart,
@@ -508,7 +511,7 @@ export default function BulkBookingModal({ onNavigate }) {
                   <div className="p-3 bg-white rounded-2xl shrink-0 shadow-lg flex flex-col items-center">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                        `upi://pay?pa=rasbrother@upi&pn=RAS%20Brother%20Tour%20and%20Travels&am=${totalAdvance}&cu=INR`
+                        `upi://pay?pa=${upiId}&pn=RAS%20Brother%20Tour%20and%20Travels&am=${totalAdvance}&cu=INR`
                       )}`}
                       alt="RAS Brother UPI QR"
                       className="w-32 h-32 object-contain"
@@ -523,12 +526,12 @@ export default function BulkBookingModal({ onNavigate }) {
                       <span className="text-slate-400 block text-[10px] uppercase font-semibold">Official Business UPI ID</span>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="font-mono font-bold text-amber-300 bg-black/60 px-3 py-1 rounded-xl border border-amber-400/30 text-xs">
-                          rasbrother@upi
+                          {upiId}
                         </span>
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText('rasbrother@upi');
+                            navigator.clipboard.writeText(upiId);
                             showToast('UPI ID copied to clipboard!', 'success');
                           }}
                           className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 text-xs flex items-center gap-1 border border-slate-700 transition"

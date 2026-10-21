@@ -36,14 +36,22 @@ import {
   FileJson,
   UserCheck,
   Headphones,
+  FileText,
+  MessageSquare,
+  AlertTriangle,
+  ZoomIn,
+  Send,
+  X,
 } from 'lucide-react';
+
+const getDocUrl = (doc) => (!doc ? '' : typeof doc === 'string' ? doc : (doc.url || ''));
 
 export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
   const { user, token } = useAuth();
   const { showToast } = useNotification();
   const { company, setCompany, refreshCompany } = useCompany();
 
-  const VALID_ADMIN_TABS = ['bookings', 'customers', 'owners', 'backup', 'overview', 'kyc', 'coupons', 'settings', 'admin_security'];
+  const VALID_ADMIN_TABS = ['bookings', 'customers', 'owners', 'backup', 'overview', 'kyc', 'helpdesk', 'coupons', 'settings', 'admin_security'];
   const [activeTab, setActiveTab] = useState(
     VALID_ADMIN_TABS.includes(initialTab) ? initialTab : 'bookings'
   );
@@ -59,6 +67,43 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
   const [kycList, setKycList] = useState([]);
   const [couponsList, setCouponsList] = useState([]);
   const [commissionData, setCommissionData] = useState({ platformRatePercentage: 10, fixedBookingFee: 199 });
+
+  // KYC Verification Queue & Detail-Matching State
+  const [kycStatusFilter, setKycStatusFilter] = useState('All');
+  const [kycSearch, setKycSearch] = useState('');
+  const [selectedKycForMatch, setSelectedKycForMatch] = useState(null);
+  const [kycAuditChecks, setKycAuditChecks] = useState({
+    nameMatched: false,
+    idVerified: false,
+    bankMatched: false,
+    rcVerified: false,
+    dlVerified: false,
+    verificationNotes: '',
+  });
+  const [rejectFeedbackReason, setRejectFeedbackReason] = useState('Document image is blurred or unclear. Please re-upload.');
+  const [customRejectFeedback, setCustomRejectFeedback] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [previewDocumentUrl, setPreviewDocumentUrl] = useState(null);
+  const [kycToggling, setKycToggling] = useState(false);
+
+  // Helpdesk & Problem Queries State (Flipkart-Style)
+  const [ticketsList, setTicketsList] = useState([]);
+  const [ticketMetrics, setTicketMetrics] = useState({
+    totalCount: 0,
+    openCount: 0,
+    inProgressCount: 0,
+    resolvedCount: 0,
+    urgentCount: 0,
+  });
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('All');
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState('All');
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState('All');
+  const [ticketSearch, setTicketSearch] = useState('');
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketAdminReply, setTicketAdminReply] = useState('');
+  const [ticketNewStatus, setTicketNewStatus] = useState('in_progress');
+  const [updatingTicket, setUpdatingTicket] = useState(false);
+  const [loadingTickets, setLoadingTickets] = useState(false);
 
   // Separate Customer and Owner search filters
   const [customerSearch, setCustomerSearch] = useState('');
@@ -92,6 +137,7 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
     website: company?.website || 'https://rasbrothertravels.com',
     gstNumber: company?.gstNumber || '07AAAAA0000A1Z5',
     upiId: company?.upiId || '9918272164@okaxis',
+    kycRequired: company?.kycRequired !== false,
   });
 
   // Admin Personal Profile & Password Change Form
@@ -116,6 +162,7 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
         website: company.website || 'https://rasbrothertravels.com',
         gstNumber: company.gstNumber || '07AAAAA0000A1Z5',
         upiId: company.upiId || '9918272164@okaxis',
+        kycRequired: company.kycRequired !== false,
       });
     }
   }, [company]);
@@ -252,8 +299,35 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
 
       // 6. Bookings
       fetchBookings();
+
+      // 7. Support Tickets (Flipkart-Style)
+      fetchTickets();
     } catch (err) {
       console.error('Admin data fetch error:', err);
+    }
+  };
+
+  const fetchTickets = async () => {
+    try {
+      setLoadingTickets(true);
+      const params = new URLSearchParams();
+      if (ticketStatusFilter && ticketStatusFilter !== 'All') params.append('status', ticketStatusFilter);
+      if (ticketCategoryFilter && ticketCategoryFilter !== 'All') params.append('category', ticketCategoryFilter);
+      if (ticketPriorityFilter && ticketPriorityFilter !== 'All') params.append('priority', ticketPriorityFilter);
+      if (ticketSearch.trim()) params.append('search', ticketSearch.trim());
+
+      const res = await fetch(`/api/support/admin/tickets?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTicketsList(data.tickets || []);
+        if (data.metrics) setTicketMetrics(data.metrics);
+      }
+    } catch (err) {
+      console.error('Failed to fetch support tickets:', err);
+    } finally {
+      setLoadingTickets(false);
     }
   };
 
@@ -266,6 +340,12 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
       fetchBookings();
     }
   }, [bookingStatusFilter, bookingEventTypeFilter]);
+
+  useEffect(() => {
+    if (token && activeTab === 'helpdesk') {
+      fetchTickets();
+    }
+  }, [ticketStatusFilter, ticketCategoryFilter, ticketPriorityFilter, activeTab]);
 
   // Handle Admin Booking Status Override
   const handleUpdateBookingStatus = async (bookingId, newStatus, action = null) => {
@@ -296,8 +376,8 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
     }
   };
 
-  // Approve / Reject KYC
-  const handleUpdateKyc = async (kycId, status, feedback = '') => {
+  // Approve / Reject KYC with detail matching checks
+  const handleUpdateKyc = async (kycId, status, feedback = '', audit = null) => {
     try {
       const res = await fetch(`/api/admin/kyc/${kycId}`, {
         method: 'PUT',
@@ -305,15 +385,62 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status, adminFeedback: feedback }),
+        body: JSON.stringify({
+          status,
+          adminFeedback: feedback,
+          adminAudit: audit || kycAuditChecks,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`KYC marked as ${status}`, 'success');
+        showToast(
+          status === 'verified'
+            ? '✅ Vendor KYC verified and fleet authorized successfully!'
+            : `KYC marked as ${status}`,
+          status === 'verified' ? 'success' : 'info'
+        );
+        setSelectedKycForMatch(null);
+        setShowRejectModal(false);
         fetchAdminData();
+      } else {
+        showToast(data.message || 'Failed to update KYC', 'error');
       }
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  // Admin Reply & Status Update on Flipkart-Style Support Ticket
+  const handleReplyTicket = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedTicket) return;
+
+    try {
+      setUpdatingTicket(true);
+      const res = await fetch(`/api/support/admin/tickets/${selectedTicket._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: ticketNewStatus,
+          adminResponse: ticketAdminReply,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Ticket #${selectedTicket.ticketId} updated to ${ticketNewStatus}`, 'success');
+        setSelectedTicket(null);
+        setTicketAdminReply('');
+        fetchTickets();
+      } else {
+        showToast(data.message || 'Failed to update ticket', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setUpdatingTicket(false);
     }
   };
 
@@ -380,6 +507,46 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
       showToast(err.message, 'error');
     }
   };
+
+  // Instant KYC Master Toggle for Admin
+  const handleToggleKycRequirement = async (explicitValue) => {
+    try {
+      setKycToggling(true);
+      const currentValue = company?.kycRequired !== false;
+      const targetState = explicitValue !== undefined ? explicitValue : !currentValue;
+      const res = await fetch('/api/admin/kyc-toggle', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kycRequired: targetState }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          targetState
+            ? 'Car Owner KYC Requirement is now ON (Mandatory for car listings).'
+            : 'Car Owner KYC Requirement is now OFF (Car listings allowed without KYC).',
+          'success'
+        );
+        if (data.settings) {
+          setCompany(data.settings);
+        } else {
+          setCompany((prev) => ({ ...prev, kycRequired: targetState }));
+        }
+        setSettingsForm((prev) => ({ ...prev, kycRequired: targetState }));
+        refreshCompany();
+      } else {
+        showToast(data.message || 'Failed to toggle KYC requirement', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error toggling KYC requirement', 'error');
+    } finally {
+      setKycToggling(false);
+    }
+  };
+
 
   // Filtered customer and owner lists
   const customers = usersList.filter((u) => u.role === 'customer');
@@ -472,6 +639,127 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
               </button>
             </div>
           )}
+        </div>
+
+        {/* 🎛️ ADMIN NAVIGATION TABS BAR */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'overview'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>📊 Overview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('bookings')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'bookings'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>📋 Bookings &amp; Revenue</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('kyc')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'kyc'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>🛡️ KYC Verification</span>
+            {kycList.filter((k) => k.status === 'pending').length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black animate-pulse">
+                {kycList.filter((k) => k.status === 'pending').length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('helpdesk')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'helpdesk'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>🎧 Problem Desk</span>
+            {ticketMetrics.openCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                {ticketMetrics.openCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('customers')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'customers'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>👥 Customers</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('owners')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'owners'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>🏢 Car Owners</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('coupons')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'coupons'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>🎟️ Coupons</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('backup')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'backup'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>💾 Backup</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('settings')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'settings'
+                ? 'bg-slate-900 text-white font-black shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <span>⚙️ Settings</span>
+          </button>
         </div>
 
         {/* Tab: Fleet Bookings & Live Monitoring */}
@@ -1253,63 +1541,607 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
           </div>
         )}
 
-        {/* Tab 3: KYC Approvals */}
+        {/* Tab: KYC Approvals & Anti-Fraud Detail-Matching Center */}
         {activeTab === 'kyc' && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <h2 className="text-lg font-black text-slate-900 font-heading">
-              Vendor KYC Verification Queue
-            </h2>
+          <div className="space-y-6">
+            {/* Header & Stats KPIs */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 text-[11px] font-black uppercase tracking-wider">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Fraud Prevention &amp; Identity Verification</span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 font-heading mt-1">
+                    Car Owner KYC &amp; Fleet Verification Desk
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Match Govt ID legal names against Bank Account details and Vehicle RC copies before owners can list multiple vehicles.
+                  </p>
+                </div>
 
-            {kycList.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-400">
-                No KYC documents pending review.
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchAdminData}
+                    className="p-2.5 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition text-xs font-bold flex items-center gap-1.5"
+                    title="Refresh List"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 🛡️ MASTER KYC ON/OFF TOGGLE BANNER FOR ADMIN */}
+              <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                company?.kycRequired !== false
+                  ? 'bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-white border-emerald-300 shadow-sm'
+                  : 'bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-white border-amber-300 shadow-sm'
+              }`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                      company?.kycRequired !== false
+                        ? 'bg-emerald-600 text-white shadow-emerald-200'
+                        : 'bg-amber-500 text-white shadow-amber-200'
+                    }`}>
+                      <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-black text-slate-900 font-heading">
+                          Car Owner KYC Requirement (Admin Master Switch)
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                          company?.kycRequired !== false
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                        }`}>
+                          {company?.kycRequired !== false ? '● KYC IS ON (MANDATORY)' : '○ KYC IS OFF (OPTIONAL)'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                        {company?.kycRequired !== false ? (
+                          <>
+                            <strong className="text-emerald-700 font-bold">Status: Active &amp; Enforced.</strong> Car owners cannot list new vehicles on RAS Brother until their Govt ID, RC, and Bank details are reviewed &amp; approved by Admin.
+                          </>
+                        ) : (
+                          <>
+                            <strong className="text-amber-700 font-bold">Status: Disabled / Optional.</strong> Car owners can list vehicles immediately without waiting for Admin KYC verification.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Button */}
+                  <div className="flex items-center gap-3 shrink-0 self-end md:self-auto bg-white/90 backdrop-blur-sm p-2 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        KYC Requirement
+                      </div>
+                      <div className={`text-xs font-black ${company?.kycRequired !== false ? 'text-emerald-700' : 'text-slate-500'}`}>
+                        {company?.kycRequired !== false ? 'Mandatory (ON)' : 'Optional (OFF)'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={kycToggling}
+                      onClick={() => handleToggleKycRequirement()}
+                      className={`relative inline-flex h-9 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        company?.kycRequired !== false ? 'bg-emerald-600' : 'bg-slate-300'
+                      } ${kycToggling ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title={`Click to turn KYC requirement ${company?.kycRequired !== false ? 'OFF' : 'ON'}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-8 w-8 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out flex items-center justify-center text-[10px] font-black ${
+                          company?.kycRequired !== false ? 'translate-x-7 text-emerald-700' : 'translate-x-0 text-slate-400'
+                        }`}
+                      >
+                        {kycToggling ? '...' : company?.kycRequired !== false ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">Total Submissions</div>
+                  <div className="text-2xl font-black text-slate-900 font-heading mt-0.5">{kycList.length}</div>
+                </div>
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                  <div className="text-[10px] font-bold text-amber-700 uppercase">Pending Detail Match</div>
+                  <div className="text-2xl font-black text-amber-800 font-heading mt-0.5">
+                    {kycList.filter((k) => k.status === 'pending').length}
+                  </div>
+                </div>
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <div className="text-[10px] font-bold text-emerald-700 uppercase">Verified Fleet Partners</div>
+                  <div className="text-2xl font-black text-emerald-800 font-heading mt-0.5">
+                    {kycList.filter((k) => k.status === 'verified').length}
+                  </div>
+                </div>
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200">
+                  <div className="text-[10px] font-bold text-rose-700 uppercase">Rejected / Flagged</div>
+                  <div className="text-2xl font-black text-rose-800 font-heading mt-0.5">
+                    {kycList.filter((k) => k.status === 'rejected').length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                  {['All', 'pending', 'verified', 'rejected'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setKycStatusFilter(st)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition shrink-0 ${
+                        kycStatusFilter === st
+                          ? 'bg-slate-900 text-white shadow'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st === 'All' ? 'All Records' : st}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative min-w-[240px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, phone, RC..."
+                    value={kycSearch}
+                    onChange={(e) => setKycSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-amber-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* KYC Records Grid */}
+            {(() => {
+              const filteredKyc = kycList.filter((k) => {
+                if (kycStatusFilter !== 'All' && k.status !== kycStatusFilter) return false;
+                if (kycSearch.trim()) {
+                  const s = kycSearch.toLowerCase();
+                  const name = (k.legalName || k.user?.name || '').toLowerCase();
+                  const phone = (k.user?.phone || '').toLowerCase();
+                  const idNum = (k.idNumber || '').toLowerCase();
+                  const rc = (k.rcNumber || '').toLowerCase();
+                  const biz = (k.ownerProfile?.businessName || '').toLowerCase();
+                  return name.includes(s) || phone.includes(s) || idNum.includes(s) || rc.includes(s) || biz.includes(s);
+                }
+                return true;
+              });
+
+              if (filteredKyc.length === 0) {
+                return (
+                  <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-2">
+                    <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
+                    <h3 className="text-sm font-bold text-slate-800">No KYC Verification Records Found</h3>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      All fleet owner submissions matching the current filter have been reviewed or no documents uploaded yet.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredKyc.map((k) => {
+                    const isNameMatching =
+                      k.legalName &&
+                      k.bankAccountName &&
+                      k.legalName.trim().toLowerCase() === k.bankAccountName.trim().toLowerCase();
+
+                    return (
+                      <div
+                        key={k._id}
+                        className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition space-y-4 flex flex-col justify-between"
+                      >
+                        <div className="space-y-3">
+                          {/* Top Row: User & Status Badge */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-800 font-black text-sm flex items-center justify-center shrink-0 uppercase">
+                                {k.user?.name?.charAt(0) || 'O'}
+                              </div>
+                              <div>
+                                <div className="font-black text-sm text-slate-900">
+                                  {k.legalName || k.user?.name || 'Owner'}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-medium">
+                                  {k.ownerProfile?.businessName || 'Fleet Partner'} • 📞 {k.user?.phone || 'N/A'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <span
+                              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 ${
+                                k.status === 'verified'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : k.status === 'pending'
+                                  ? 'bg-amber-100 text-amber-800 animate-pulse'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {k.status}
+                            </span>
+                          </div>
+
+                          {/* Detail Highlights */}
+                          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-500">Government ID:</span>
+                              <span className="font-bold text-slate-900">
+                                {k.idType} • <span className="font-mono">{k.idNumber}</span>
+                              </span>
+                            </div>
+
+                            {k.bankAccountName && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Bank Account Holder:</span>
+                                <span className="font-bold text-slate-900 flex items-center gap-1">
+                                  {k.bankAccountName}
+                                  {isNameMatching ? (
+                                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-black">
+                                      ✓ MATCH
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-black">
+                                      ⚠️ CHECK
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-500">Attached Fleet:</span>
+                              <span className="font-bold text-slate-900">
+                                🚗 {k.carsCount || 0} Registered Cars
+                              </span>
+                            </div>
+
+                            {k.rcNumber && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Primary RC No:</span>
+                                <span className="font-mono font-bold text-slate-900">{k.rcNumber}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Document Quick Badges */}
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {getDocUrl(k.documentFront) && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocumentUrl(getDocUrl(k.documentFront))}
+                                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition"
+                              >
+                                <Eye className="w-3 h-3 text-amber-600" /> ID Front
+                              </button>
+                            )}
+                            {getDocUrl(k.documentBack) && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocumentUrl(getDocUrl(k.documentBack))}
+                                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition"
+                              >
+                                <Eye className="w-3 h-3 text-amber-600" /> ID Back
+                              </button>
+                            )}
+                            {getDocUrl(k.vehicleRegistrationRc) && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocumentUrl(getDocUrl(k.vehicleRegistrationRc))}
+                                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition"
+                              >
+                                <FileText className="w-3 h-3 text-blue-600" /> RC Copy
+                              </button>
+                            )}
+                            {getDocUrl(k.drivingLicense) && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocumentUrl(getDocUrl(k.drivingLicense))}
+                                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition"
+                              >
+                                <FileText className="w-3 h-3 text-indigo-600" /> DL Copy
+                              </button>
+                            )}
+                          </div>
+
+                          {k.adminFeedback && (
+                            <div className="text-[11px] p-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 font-medium">
+                              ⚠️ Feedback: {k.adminFeedback}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom Actions */}
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedKycForMatch(k);
+                              setKycAuditChecks({
+                                nameMatched: isNameMatching || false,
+                                idVerified: false,
+                                bankMatched: Boolean(k.bankAccountNumber),
+                                rcVerified: Boolean(k.rcNumber),
+                                dlVerified: Boolean(k.drivingLicenseNumber),
+                                verificationNotes: '',
+                              });
+                            }}
+                            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs shadow-sm flex items-center justify-center gap-1.5 transition"
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                            <span>Match Details &amp; Verify</span>
+                          </button>
+
+                          {k.status === 'pending' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateKyc(k._id, 'verified', 'Approved by Admin')}
+                                className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                title="Quick Approve"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedKycForMatch(k);
+                                  setShowRejectModal(true);
+                                }}
+                                className="p-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs"
+                                title="Reject with Reason"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Tab: Help & Problem Queries Management (Flipkart-Style) */}
+        {activeTab === 'helpdesk' && (
+          <div className="space-y-6">
+            {/* Header & Problem Desk KPIs */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 text-blue-700 text-[11px] font-black uppercase tracking-wider">
+                    <Headphones className="w-3.5 h-3.5" />
+                    <span>Flipkart-Style 24x7 Customer &amp; Vendor Problem Desk</span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 font-heading mt-1">
+                    Help &amp; Problem Support Tickets
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Direct problem queries from customers &amp; car owners. Resolve issues, send direct resolutions, and track incident status.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchTickets}
+                    className="p-2.5 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition text-xs font-bold flex items-center gap-1.5"
+                    title="Refresh Tickets"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Problem Desk Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">Total Tickets</div>
+                  <div className="text-2xl font-black text-slate-900 font-heading mt-0.5">{ticketMetrics.totalCount}</div>
+                </div>
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                  <div className="text-[10px] font-bold text-amber-700 uppercase">Open Issues</div>
+                  <div className="text-2xl font-black text-amber-800 font-heading mt-0.5">{ticketMetrics.openCount}</div>
+                </div>
+                <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200">
+                  <div className="text-[10px] font-bold text-sky-700 uppercase">In Progress</div>
+                  <div className="text-2xl font-black text-sky-800 font-heading mt-0.5">{ticketMetrics.inProgressCount}</div>
+                </div>
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <div className="text-[10px] font-bold text-emerald-700 uppercase">Resolved</div>
+                  <div className="text-2xl font-black text-emerald-800 font-heading mt-0.5">{ticketMetrics.resolvedCount}</div>
+                </div>
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200">
+                  <div className="text-[10px] font-bold text-rose-700 uppercase">Urgent Escalations</div>
+                  <div className="text-2xl font-black text-rose-800 font-heading mt-0.5 flex items-center gap-1">
+                    {ticketMetrics.urgentCount > 0 && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />}
+                    {ticketMetrics.urgentCount}
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                  {['All', 'open', 'in_progress', 'resolved', 'closed'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setTicketStatusFilter(st)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition shrink-0 ${
+                        ticketStatusFilter === st
+                          ? 'bg-slate-900 text-white shadow'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st === 'All' ? 'All Tickets' : st.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={ticketCategoryFilter}
+                    onChange={(e) => setTicketCategoryFilter(e.target.value)}
+                    className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-700 outline-none"
+                  >
+                    <option value="All">All Categories</option>
+                    <option value="Booking Issue">Booking Issue</option>
+                    <option value="Payment & Refund Problem">Payment &amp; Refund</option>
+                    <option value="Car Owner KYC & Documents">Car Owner KYC</option>
+                    <option value="Driver / Vehicle Issue">Driver / Vehicle</option>
+                    <option value="Fraud & Security Concern">Fraud / Security</option>
+                    <option value="Other Problem / Query">Other Query</option>
+                  </select>
+
+                  <div className="relative min-w-[200px]">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search ticket #, name..."
+                      value={ticketSearch}
+                      onChange={(e) => setTicketSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-amber-500 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tickets Table / List */}
+            {ticketsList.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-2">
+                <Headphones className="w-10 h-10 text-slate-300 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-800">No Support Queries Found</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  There are no pending tickets matching your filter. Any customer or vendor problem inquiry will appear here in real time.
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {kycList.map((k) => (
+              <div className="space-y-3">
+                {ticketsList.map((ticket) => (
                   <div
-                    key={k._id}
-                    className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs"
+                    key={ticket._id}
+                    className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition space-y-3"
                   >
-                    <div>
-                      <div className="font-bold text-sm text-slate-900">
-                        {k.user?.name} ({k.user?.phone})
-                      </div>
-                      <div className="text-slate-600 mt-0.5">
-                        Document: <span className="font-bold">{k.idType}</span> • ID Number: <span className="font-mono">{k.idNumber}</span>
-                      </div>
-                      {k.documentFront && (
-                        <a
-                          href={k.documentFront}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-amber-600 font-bold underline mt-1 inline-block"
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-mono font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl text-xs border border-amber-200">
+                          #{ticket.ticketId}
+                        </span>
+
+                        <span
+                          className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                            ticket.category.includes('Payment')
+                              ? 'bg-purple-100 text-purple-800'
+                              : ticket.category.includes('KYC')
+                              ? 'bg-amber-100 text-amber-800'
+                              : ticket.category.includes('Fraud')
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
                         >
-                          View Uploaded Document
-                        </a>
-                      )}
+                          {ticket.category}
+                        </span>
+
+                        {ticket.priority === 'urgent' && (
+                          <span className="text-[9px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full animate-pulse">
+                            🔥 URGENT
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            ticket.status === 'open'
+                              ? 'bg-amber-100 text-amber-800'
+                              : ticket.status === 'in_progress'
+                              ? 'bg-sky-100 text-sky-800'
+                              : ticket.status === 'resolved'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {ticket.status.replace('_', ' ')}
+                        </span>
+                        <span className="text-slate-400 text-[11px]">
+                          {new Date(ticket.createdAt).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="uppercase font-bold text-[10px] px-2.5 py-1 rounded-full bg-slate-200">
-                        {k.status}
-                      </span>
-                      {k.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleUpdateKyc(k._id, 'verified')}
-                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleUpdateKyc(k._id, 'rejected', 'Image unclear')}
-                            className="px-3.5 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 font-bold"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
+                    <div className="space-y-1">
+                      <h4 className="font-extrabold text-sm text-slate-900">
+                        {ticket.subject}
+                      </h4>
+                      <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                        {ticket.description}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs">
+                      <div className="flex items-center gap-3 text-slate-600">
+                        <span className="font-bold text-slate-900">
+                          👤 {ticket.name} ({ticket.userRole || 'customer'})
+                        </span>
+                        <span>•</span>
+                        <span>📞 {ticket.phone}</span>
+                        {ticket.bookingId && (
+                          <>
+                            <span>•</span>
+                            <span className="font-mono text-amber-700 font-bold">Booking #{ticket.bookingId}</span>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`tel:${ticket.phone}`}
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center gap-1"
+                        >
+                          <Phone className="w-3 h-3 text-amber-600" /> Call
+                        </a>
+                        <a
+                          href={`https://wa.me/91${ticket.phone.replace(/[^0-9]/g, '').slice(-10)}?text=${encodeURIComponent(
+                            `Hello ${ticket.name}, regarding your RAS Brother Tour & Travels Problem Ticket #${ticket.ticketId}:`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs transition flex items-center gap-1"
+                        >
+                          💬 WhatsApp
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setTicketNewStatus(ticket.status === 'open' ? 'in_progress' : ticket.status);
+                            setTicketAdminReply(ticket.adminResponse || '');
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition"
+                        >
+                          Open &amp; Reply &rarr;
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1317,6 +2149,7 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
             )}
           </div>
         )}
+
 
         {/* Tab 4: Coupons */}
         {activeTab === 'coupons' && (
@@ -1506,6 +2339,44 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
                 />
               </div>
 
+              {/* Partner KYC Verification Policy */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-slate-700" />
+                      <label className="block text-slate-900 font-black text-xs uppercase tracking-wider">
+                        Car Owner KYC Verification Policy
+                      </label>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        settingsForm.kycRequired ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {settingsForm.kycRequired ? 'Mandatory (ON)' : 'Optional (OFF)'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Choose whether car owners must have verified KYC documents before listing vehicles on RAS Brother Tour &amp; Travels.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsForm((prev) => ({ ...prev, kycRequired: !prev.kycRequired }))}
+                    className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      settingsForm.kycRequired ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out flex items-center justify-center text-[10px] font-black ${
+                        settingsForm.kycRequired ? 'translate-x-6 text-emerald-700' : 'translate-x-0 text-slate-400'
+                      }`}
+                    >
+                      {settingsForm.kycRequired ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-2xl flex items-center gap-2 shadow-lg cursor-pointer"
@@ -1650,6 +2521,584 @@ export default function AdminDashboard({ onNavigate, onLogout, initialTab }) {
                 >
                   Close Preview
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Vendor KYC Detail Matching & Anti-Fraud Verification Center */}
+        {selectedKycForMatch && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col justify-between">
+              
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-800 text-[11px] font-black uppercase tracking-wider">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Vendor Identity &amp; Bank Account Matching Desk</span>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 font-heading">
+                    Match Details: {selectedKycForMatch.legalName || selectedKycForMatch.user?.name}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Verify that government-issued ID legal name strictly matches the Bank Account Holder Name to prevent fraud.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedKycForMatch(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Side-by-Side Comparison Container */}
+              <div className="flex-1 overflow-y-auto space-y-5 pr-1 text-xs">
+                {/* Comparison Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
+                  {/* Left Column: Submitted Government Identification */}
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span>🪪 Government ID &amp; Documents</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">Legal Name (as on ID)</div>
+                        <div className="font-black text-sm text-slate-900 font-mono">
+                          {selectedKycForMatch.legalName || selectedKycForMatch.user?.name}
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">Document Type &amp; Number</div>
+                        <div className="font-bold text-slate-900">
+                          {selectedKycForMatch.idType} • <span className="font-mono text-amber-800">{selectedKycForMatch.idNumber}</span>
+                        </div>
+                      </div>
+
+                      {/* Document Images Preview */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-bold mb-1">Front ID Document:</div>
+                          {getDocUrl(selectedKycForMatch.documentFront) ? (
+                            <div
+                              onClick={() => setPreviewDocumentUrl(getDocUrl(selectedKycForMatch.documentFront))}
+                              className="group relative h-28 rounded-xl border border-slate-200 overflow-hidden cursor-pointer bg-slate-100 flex items-center justify-center"
+                            >
+                              <img
+                                src={getDocUrl(selectedKycForMatch.documentFront)}
+                                alt="ID Front"
+                                className="w-full h-full object-cover group-hover:scale-105 transition"
+                              />
+                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-bold transition">
+                                <ZoomIn className="w-5 h-5" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-28 rounded-xl border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[11px]">
+                              Not provided
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-bold mb-1">Back ID Document:</div>
+                          {getDocUrl(selectedKycForMatch.documentBack) ? (
+                            <div
+                              onClick={() => setPreviewDocumentUrl(getDocUrl(selectedKycForMatch.documentBack))}
+                              className="group relative h-28 rounded-xl border border-slate-200 overflow-hidden cursor-pointer bg-slate-100 flex items-center justify-center"
+                            >
+                              <img
+                                src={getDocUrl(selectedKycForMatch.documentBack)}
+                                alt="ID Back"
+                                className="w-full h-full object-cover group-hover:scale-105 transition"
+                              />
+                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-bold transition">
+                                <ZoomIn className="w-5 h-5" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-28 rounded-xl border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[11px]">
+                              No back image
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Driving License & RC preview */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1">
+                          <div className="text-[10px] text-slate-400 font-bold">Driving License:</div>
+                          <div className="font-mono font-bold text-slate-800">
+                            {selectedKycForMatch.drivingLicenseNumber || 'Not specified'}
+                          </div>
+                          {getDocUrl(selectedKycForMatch.drivingLicense) && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocumentUrl(getDocUrl(selectedKycForMatch.drivingLicense))}
+                              className="text-indigo-600 underline text-[11px] font-bold"
+                            >
+                              View License Doc
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1">
+                          <div className="text-[10px] text-slate-400 font-bold">Vehicle RC Book:</div>
+                          <div className="font-mono font-bold text-slate-800">
+                            {selectedKycForMatch.rcNumber || 'Not specified'}
+                          </div>
+                          {getDocUrl(selectedKycForMatch.vehicleRegistrationRc) && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocumentUrl(getDocUrl(selectedKycForMatch.vehicleRegistrationRc))}
+                              className="text-blue-600 underline text-[11px] font-bold"
+                            >
+                              View RC Copy
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Bank Details & Profile Cross-Match */}
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="font-extrabold text-sm text-slate-900 flex items-center justify-between">
+                      <span>🏦 Bank Account &amp; Profile Match</span>
+                      {(() => {
+                        const lName = (selectedKycForMatch.legalName || '').trim().toLowerCase();
+                        const bName = (selectedKycForMatch.bankAccountName || '').trim().toLowerCase();
+                        const isMatch = lName && bName && lName === bName;
+
+                        return isMatch ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px]">
+                            ✓ LEGAL NAME MATCHES
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[10px]">
+                            ⚠️ REVIEW NAME CAREFULLY
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">Registered Bank Account Holder Name</div>
+                        <div className="font-black text-sm text-slate-900 font-mono">
+                          {selectedKycForMatch.bankAccountName || selectedKycForMatch.ownerProfile?.bankDetails?.accountHolderName || 'Not provided'}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-400 uppercase font-bold">Bank Name &amp; IFSC</div>
+                          <div className="font-bold text-slate-800">
+                            {selectedKycForMatch.bankName || 'Bank'} • <span className="font-mono">{selectedKycForMatch.bankIfsc || 'N/A'}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-400 uppercase font-bold">Account Number</div>
+                          <div className="font-mono font-bold text-slate-800">
+                            {selectedKycForMatch.bankAccountNumber || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">UPI ID (For Direct Payouts)</div>
+                        <div className="font-mono font-bold text-amber-800">
+                          {selectedKycForMatch.upiId || selectedKycForMatch.ownerProfile?.bankDetails?.upiId || 'Not provided'}
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">Registered Fleet Vehicles</div>
+                        <div className="text-slate-700">
+                          Total Attached: <span className="font-bold text-slate-900">{selectedKycForMatch.carsCount || 0} vehicles</span>
+                        </div>
+                        {selectedKycForMatch.cars && selectedKycForMatch.cars.length > 0 && (
+                          <div className="space-y-1 pt-1 max-h-24 overflow-y-auto">
+                            {selectedKycForMatch.cars.map((c, i) => (
+                              <div key={c._id || i} className="text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded-lg flex items-center justify-between">
+                                <span>🚘 {c.brand} {c.name} ({c.category})</span>
+                                <span className="font-mono font-bold text-slate-900">{c.registrationNumber || 'No Plate'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Admin Audit Verification Checklist */}
+                <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-3">
+                  <div className="font-black text-xs text-amber-950 flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-amber-700" />
+                    <span>Admin Fraud Verification Checklist (Confirm Before Approving)</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-amber-200/80 cursor-pointer text-slate-800 font-semibold select-none">
+                      <input
+                        type="checkbox"
+                        checked={kycAuditChecks.nameMatched}
+                        onChange={(e) => setKycAuditChecks({ ...kycAuditChecks, nameMatched: e.target.checked })}
+                        className="w-4 h-4 text-amber-600 rounded"
+                      />
+                      <span>Legal Name Matches Bank</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-amber-200/80 cursor-pointer text-slate-800 font-semibold select-none">
+                      <input
+                        type="checkbox"
+                        checked={kycAuditChecks.idVerified}
+                        onChange={(e) => setKycAuditChecks({ ...kycAuditChecks, idVerified: e.target.checked })}
+                        className="w-4 h-4 text-amber-600 rounded"
+                      />
+                      <span>Govt ID is Authentic &amp; Clear</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-amber-200/80 cursor-pointer text-slate-800 font-semibold select-none">
+                      <input
+                        type="checkbox"
+                        checked={kycAuditChecks.rcVerified}
+                        onChange={(e) => setKycAuditChecks({ ...kycAuditChecks, rcVerified: e.target.checked })}
+                        className="w-4 h-4 text-amber-600 rounded"
+                      />
+                      <span>Vehicle RC Document Valid</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-slate-500">
+                  Current Status: <span className="font-black uppercase text-slate-900">{selectedKycForMatch.status}</span>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectModal(true)}
+                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs transition"
+                  >
+                    Reject with Reason...
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUpdateKyc(
+                        selectedKycForMatch._id,
+                        'verified',
+                        'KYC details matched and verified by Platform Admin.',
+                        kycAuditChecks
+                      );
+                    }}
+                    className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Approve &amp; Verify Fleet Partner</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: KYC Rejection Reason Selection */}
+        {showRejectModal && selectedKycForMatch && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-rose-600">
+                  <AlertTriangle className="w-5 h-5" />
+                  <h3 className="text-base font-black text-slate-900 font-heading">
+                    Reject KYC Verification
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRejectModal(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <p className="text-slate-600">
+                  Please select or enter the specific reason why this KYC was rejected. The car owner will receive this feedback so they can re-upload proper documents.
+                </p>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Common Fraud Prevention Reasons:</label>
+                  <select
+                    value={rejectFeedbackReason}
+                    onChange={(e) => setRejectFeedbackReason(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
+                  >
+                    <option value="Document image is blurred, cropped or unreadable. Please re-upload clear photos.">
+                      Document image is blurred / unreadable
+                    </option>
+                    <option value="Bank Account Holder Name does not match Legal Name on Govt ID.">
+                      Bank Account Name does not match ID Legal Name
+                    </option>
+                    <option value="Vehicle RC Document is expired or does not match owner details.">
+                      Vehicle RC does not match registered owner
+                    </option>
+                    <option value="Driving License is expired or invalid.">
+                      Driving License expired / invalid
+                    </option>
+                    <option value="Document appears duplicate or suspicious. Physical inspection required.">
+                      Suspicious / Duplicate document
+                    </option>
+                    <option value="Custom">Other (write custom feedback below)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Additional Feedback Note for Owner:</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter instructions for the car owner on how to fix and re-submit..."
+                    value={customRejectFeedback}
+                    onChange={(e) => setCustomRejectFeedback(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-300 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRejectModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const finalFeedback =
+                      rejectFeedbackReason === 'Custom'
+                        ? customRejectFeedback || 'Please review your uploaded documents and re-submit.'
+                        : `${rejectFeedbackReason}${customRejectFeedback ? ` Note: ${customRejectFeedback}` : ''}`;
+                    handleUpdateKyc(selectedKycForMatch._id, 'rejected', finalFeedback);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md"
+                >
+                  Confirm Rejection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Full Document Preview with Zoom */}
+        {previewDocumentUrl && (
+          <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-slate-900 rounded-3xl max-w-2xl w-full p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between text-white border-b border-slate-800 pb-2">
+                <div className="text-xs font-bold text-amber-400">Document Inspection Viewer</div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocumentUrl(null)}
+                  className="p-1 rounded-xl text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="max-h-[70vh] flex items-center justify-center overflow-hidden bg-slate-950 rounded-2xl p-2">
+                <img
+                  src={previewDocumentUrl}
+                  alt="Document preview"
+                  className="max-h-[65vh] w-auto object-contain rounded-xl shadow"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <a
+                  href={previewDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open in New Tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocumentUrl(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Flipkart-Style Support Problem Ticket Resolution */}
+        {selectedTicket && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 my-auto animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col justify-between">
+              
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-xl text-xs border border-amber-200">
+                      #{selectedTicket.ticketId}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full">
+                      {selectedTicket.category}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-black text-slate-900 font-heading">
+                    {selectedTicket.subject}
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTicket(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
+                {/* User info card */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-black text-sm text-slate-900">
+                      👤 {selectedTicket.name} ({selectedTicket.userRole || 'customer'})
+                    </div>
+                    <div className="text-slate-500 mt-0.5">
+                      📞 {selectedTicket.phone} {selectedTicket.email ? `• ✉️ ${selectedTicket.email}` : ''}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${selectedTicket.phone}`}
+                      className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold transition flex items-center gap-1"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-amber-600" /> Call User
+                    </a>
+                    <a
+                      href={`https://wa.me/91${selectedTicket.phone.replace(/[^0-9]/g, '').slice(-10)}?text=${encodeURIComponent(
+                        `Hello ${selectedTicket.name}, regarding your problem ticket #${selectedTicket.ticketId} with RAS Brother Tour & Travels:`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black transition flex items-center gap-1"
+                    >
+                      💬 WhatsApp
+                    </a>
+                  </div>
+                </div>
+
+                {/* Problem Description */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
+                  <div className="font-bold text-slate-500 text-[11px] uppercase">Problem Description</div>
+                  <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
+                    {selectedTicket.description}
+                  </p>
+
+                  {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                    <div className="pt-2">
+                      <div className="text-[10px] font-bold text-slate-400 mb-1">Attached Screenshot / Proof:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTicket.attachments.map((att, i) => (
+                          <div
+                            key={i}
+                            onClick={() => setPreviewDocumentUrl(att)}
+                            className="w-20 h-20 rounded-xl border border-slate-200 overflow-hidden cursor-pointer"
+                          >
+                            <img src={att} alt="Attachment" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Message Thread History */}
+                {selectedTicket.messages && selectedTicket.messages.length > 1 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="font-bold text-slate-500 text-[11px] uppercase">Message Thread History</div>
+                    {selectedTicket.messages.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-2xl text-xs space-y-1 ${
+                          m.senderRole === 'admin'
+                            ? 'bg-amber-50 border border-amber-200 text-amber-950 ml-4'
+                            : 'bg-slate-100 text-slate-800 mr-4'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span>{m.senderName} ({m.senderRole})</span>
+                          <span className="text-slate-400">{new Date(m.createdAt).toLocaleTimeString()}</span>
+                        </div>
+                        <p>{m.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Resolution Form */}
+                <form onSubmit={handleReplyTicket} className="space-y-3 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <label className="block text-slate-700 font-bold mb-1">Update Ticket Status:</label>
+                      <select
+                        value={ticketNewStatus}
+                        onChange={(e) => setTicketNewStatus(e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 font-bold bg-white text-slate-800"
+                      >
+                        <option value="in_progress">In Progress (Investigating)</option>
+                        <option value="resolved">Resolved (Issue Fixed / Settled)</option>
+                        <option value="closed">Closed (Done)</option>
+                        <option value="open">Re-open (Pending)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Admin Resolution Note / Reply to User:</label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="e.g. Refund of ₹500 has been initiated to your bank, or Driver assigned has been replaced..."
+                      value={ticketAdminReply}
+                      onChange={(e) => setTicketAdminReply(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={updatingTicket}
+                    className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{updatingTicket ? 'Sending Resolution...' : 'Send Resolution & Update Ticket'}</span>
+                  </button>
+                </form>
               </div>
             </div>
           </div>

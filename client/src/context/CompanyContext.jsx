@@ -18,6 +18,7 @@ export const CompanyProvider = ({ children }) => {
     logoDark: '/brand/ras-logo-dark.svg',
     logoLight: '/brand/ras-logo-light.svg',
     favicon: '/brand/favicon.svg',
+    kycRequired: true,
   });
 
   const fetchSettings = async () => {

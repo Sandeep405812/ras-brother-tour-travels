@@ -127,4 +127,26 @@ export function openDriverDutySlipWhatsApp(booking, chauffeur = {}, company = {}
   openWhatsAppMessage(phone, message);
 }
 
+export function formatSupportTicketWhatsAppMessage(ticket, company = {}) {
+  return (
+    `🆘 *RAS BROTHER HELP & PROBLEM DESK - TICKET #${ticket.ticketId}*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `👤 *User Name:* ${ticket.name}\n` +
+    `📞 *Mobile:* ${ticket.phone}\n` +
+    `📂 *Category:* ${ticket.category}\n` +
+    `🎯 *Subject:* ${ticket.subject}\n` +
+    `📝 *Problem:* ${ticket.description}\n` +
+    (ticket.bookingId ? `📋 *Booking ID:* #${ticket.bookingId}\n` : '') +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🚨 *Priority:* ${(ticket.priority || 'medium').toUpperCase()} • Status: ${(ticket.status || 'open').toUpperCase()}\n` +
+    `🏢 *Helpline Desk:* ${company.phone || '+91 9918272164'}`
+  );
+}
+
+export function openSupportTicketWhatsApp(ticket, adminPhone = '9918272164', company = {}) {
+  const message = formatSupportTicketWhatsAppMessage(ticket, company);
+  openWhatsAppMessage(adminPhone, message);
+}
+
+
 
