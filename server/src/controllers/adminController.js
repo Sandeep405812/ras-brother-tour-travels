@@ -120,30 +120,53 @@ exports.updateUserRole = async (req, res, next) => {
   }
 };
 
-// @desc Get All KYC Records
+// @desc Get All KYC Records with enriched fleet count & bank verification info
 // @route GET /api/admin/kyc
 exports.getAllKYC = async (req, res, next) => {
   try {
     const kycRecords = await KYC.find()
-      .populate('user', 'name email phone')
-      .populate('ownerProfile', 'businessName address')
-      .sort({ submittedAt: -1 });
+      .populate('user', 'name email phone avatar address city')
+      .populate('ownerProfile', 'businessName bio address city bankDetails rating totalReviews totalBookings')
+      .sort({ submittedAt: -1 })
+      .lean();
+
+    const userIds = kycRecords.map((k) => k.user?._id).filter(Boolean);
+    const cars = await Car.find({ owner: { $in: userIds } })
+      .select('owner brand name model category registrationNumber active isVerifiedByAdmin')
+      .lean();
+
+    const carMap = new Map();
+    cars.forEach((c) => {
+      const oId = c.owner?.toString();
+      if (!carMap.has(oId)) carMap.set(oId, []);
+      carMap.get(oId).push(c);
+    });
+
+    const enrichedRecords = kycRecords.map((k) => {
+      const uId = k.user?._id?.toString();
+      const ownerCars = carMap.get(uId) || [];
+      return {
+        ...k,
+        carsCount: ownerCars.length,
+        cars: ownerCars,
+      };
+    });
 
     res.json({
       success: true,
-      count: kycRecords.length,
-      kycRecords,
+      count: enrichedRecords.length,
+      kycRecords: enrichedRecords,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc Approve / Reject KYC
+// @desc Approve / Reject KYC with detail matching check
 // @route PUT /api/admin/kyc/:id
 exports.updateKYCStatus = async (req, res, next) => {
   try {
-    const { status, adminFeedback } = req.body;
+    const { status, adminFeedback, adminAudit } = req.body;
     const kyc = await KYC.findById(req.params.id);
 
     if (!kyc) {
@@ -152,6 +175,18 @@ exports.updateKYCStatus = async (req, res, next) => {
 
     kyc.status = status;
     kyc.adminFeedback = adminFeedback || '';
+    if (adminAudit) {
+      kyc.adminAudit = {
+        nameMatched: Boolean(adminAudit.nameMatched),
+        idVerified: Boolean(adminAudit.idVerified),
+        bankMatched: Boolean(adminAudit.bankMatched),
+        rcVerified: Boolean(adminAudit.rcVerified),
+        dlVerified: Boolean(adminAudit.dlVerified),
+        verifiedByAdminName: req.user.name || 'Admin',
+        verificationNotes: adminAudit.verificationNotes || '',
+      };
+    }
+
     if (status === 'verified') {
       kyc.verifiedAt = new Date();
     }
@@ -163,15 +198,23 @@ exports.updateKYCStatus = async (req, res, next) => {
       { kycStatus: status }
     );
 
+    // If verified, verify and activate owner's cars
+    if (status === 'verified') {
+      await Car.updateMany(
+        { owner: kyc.user },
+        { isVerifiedByAdmin: true, active: true }
+      );
+    }
+
     // Notify user
     await Notification.create({
       user: kyc.user,
-      title: `KYC Document ${status === 'verified' ? 'Approved' : 'Rejected'}`,
+      title: `KYC Document ${status === 'verified' ? 'Approved & Verified' : 'Rejected'}`,
       message: status === 'verified'
-        ? 'Congratulations! Your vendor KYC has been verified. You can now accept car bookings on RAS Brother Tour & Travels.'
-        : `Your KYC was not approved: ${adminFeedback || 'Please check and re-upload clear documents.'}`,
+        ? '🎉 Congratulations! Your Car Owner KYC has been matched and verified by RAS Brother Admin. You can now list unlimited cars and accept customer bookings!'
+        : `Your KYC documents could not be verified: ${adminFeedback || 'Please review your uploaded documents and re-submit with clear photos.'}`,
       type: 'system',
-      link: '/owner/kyc',
+      link: '/owner-dashboard',
     });
 
     res.json({
@@ -192,7 +235,11 @@ exports.getCompanySettings = async (req, res, next) => {
     if (!settings) {
       settings = await CompanySettings.create({
         companyName: 'RAS Brother Tour & Travels',
+        kycRequired: true,
       });
+    } else if (settings.kycRequired === undefined) {
+      settings.kycRequired = true;
+      await settings.save();
     }
     res.json({
       success: true,
@@ -225,6 +272,39 @@ exports.updateCompanySettings = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc Toggle KYC Mandatory Requirement ON/OFF
+// @route PUT /api/admin/kyc-toggle
+exports.toggleKycRequired = async (req, res, next) => {
+  try {
+    const { kycRequired } = req.body;
+    let settings = await CompanySettings.findOne();
+    if (!settings) {
+      settings = await CompanySettings.create({
+        companyName: 'RAS Brother Tour & Travels',
+        kycRequired: kycRequired !== undefined ? Boolean(kycRequired) : false,
+      });
+    } else {
+      if (kycRequired !== undefined) {
+        settings.kycRequired = Boolean(kycRequired);
+      } else {
+        settings.kycRequired = !settings.kycRequired;
+      }
+      settings.updatedAt = new Date();
+      await settings.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Car Owner KYC verification requirement is now turned ${settings.kycRequired ? 'ON (Mandatory)' : 'OFF (Optional)'}.`,
+      kycRequired: settings.kycRequired,
+      settings,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 // @desc Coupons Management
 // @route GET /api/admin/coupons

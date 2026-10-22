@@ -89,48 +89,139 @@ exports.getOwnerDashboard = async (req, res, next) => {
   }
 };
 
+const extractUrl = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'object' && val.url) return String(val.url).trim();
+  return String(val).trim();
+};
+
 // @desc Submit KYC Verification Document
 // @route POST /api/owners/kyc
 exports.submitKYC = async (req, res, next) => {
   try {
-    const { idType, idNumber, documentFront, documentBack, drivingLicense, vehicleRegistrationRc } = req.body;
+    const {
+      legalName,
+      idType,
+      idNumber,
+      documentFront,
+      documentBack,
+      panNumber,
+      panDocument,
+      drivingLicenseNumber,
+      drivingLicense,
+      rcNumber,
+      vehicleRegistrationRc,
+      bankAccountName,
+      bankAccountNumber,
+      bankIfsc,
+      bankName,
+      upiId,
+    } = req.body;
+
+    const cleanFront = extractUrl(documentFront);
+    const cleanBack = extractUrl(documentBack);
+    const cleanPanDoc = extractUrl(panDocument);
+    const cleanDl = extractUrl(drivingLicense);
+    const cleanRcDoc = extractUrl(vehicleRegistrationRc);
+
+    if (!legalName || !idType || !idNumber || !cleanFront) {
+      return res.status(400).json({
+        success: false,
+        message: 'Legal name, ID type, ID number, and Front document image are required for KYC verification.',
+      });
+    }
+
+    const User = require('../models/User');
+    const Notification = require('../models/Notification');
 
     const profile = await OwnerProfile.findOne({ user: req.user.id });
 
     let kyc = await KYC.findOne({ user: req.user.id });
     if (kyc) {
+      kyc.legalName = legalName || kyc.legalName;
       kyc.idType = idType || kyc.idType;
       kyc.idNumber = idNumber || kyc.idNumber;
-      if (documentFront) kyc.documentFront = documentFront;
-      if (documentBack) kyc.documentBack = documentBack;
-      if (drivingLicense) kyc.drivingLicense = drivingLicense;
-      if (vehicleRegistrationRc) kyc.vehicleRegistrationRc = vehicleRegistrationRc;
+      if (cleanFront) kyc.documentFront = cleanFront;
+      if (cleanBack) kyc.documentBack = cleanBack;
+      if (panNumber) kyc.panNumber = panNumber;
+      if (cleanPanDoc) kyc.panDocument = cleanPanDoc;
+      if (drivingLicenseNumber) kyc.drivingLicenseNumber = drivingLicenseNumber;
+      if (cleanDl) kyc.drivingLicense = cleanDl;
+      if (rcNumber) kyc.rcNumber = rcNumber;
+      if (cleanRcDoc) kyc.vehicleRegistrationRc = cleanRcDoc;
+      if (bankAccountName) kyc.bankAccountName = bankAccountName;
+      if (bankAccountNumber) kyc.bankAccountNumber = bankAccountNumber;
+      if (bankIfsc) kyc.bankIfsc = bankIfsc;
+      if (bankName) kyc.bankName = bankName;
+      if (upiId) kyc.upiId = upiId;
       kyc.status = 'pending';
       kyc.adminFeedback = '';
+      kyc.adminAudit = {
+        nameMatched: false,
+        idVerified: false,
+        bankMatched: false,
+        rcVerified: false,
+        dlVerified: false,
+        verifiedByAdminName: '',
+        verificationNotes: '',
+      };
       kyc.submittedAt = new Date();
       await kyc.save();
     } else {
       kyc = await KYC.create({
         user: req.user.id,
         ownerProfile: profile ? profile._id : undefined,
+        legalName: legalName.trim(),
         idType,
-        idNumber,
-        documentFront,
-        documentBack,
-        drivingLicense,
-        vehicleRegistrationRc,
+        idNumber: idNumber.trim(),
+        documentFront: cleanFront,
+        documentBack: cleanBack || '',
+        panNumber: panNumber || '',
+        panDocument: cleanPanDoc || '',
+        drivingLicenseNumber: drivingLicenseNumber || '',
+        drivingLicense: cleanDl || '',
+        rcNumber: rcNumber || '',
+        vehicleRegistrationRc: cleanRcDoc || '',
+        bankAccountName: bankAccountName || legalName.trim(),
+        bankAccountNumber: bankAccountNumber || '',
+        bankIfsc: bankIfsc || '',
+        bankName: bankName || '',
+        upiId: upiId || '',
         status: 'pending',
       });
     }
 
     if (profile) {
       profile.kycStatus = 'pending';
+      if (bankAccountNumber || upiId || bankAccountName) {
+        profile.bankDetails = {
+          accountHolderName: bankAccountName || legalName.trim(),
+          accountNumber: bankAccountNumber || profile.bankDetails?.accountNumber || '',
+          ifscCode: bankIfsc || profile.bankDetails?.ifscCode || '',
+          bankName: bankName || profile.bankDetails?.bankName || '',
+          upiId: upiId || profile.bankDetails?.upiId || '',
+        };
+      }
       await profile.save();
+    }
+
+    // Notify all Admins to review and match KYC details
+    const admins = await User.find({ role: 'admin' });
+    const notifications = admins.map((admin) => ({
+      user: admin._id,
+      title: `🛡️ New Owner KYC Submitted: ${legalName}`,
+      message: `Car owner ${legalName} (${req.user.phone || 'Phone'}) submitted ${idType} (${idNumber}) & vehicle RC for verification. Please match details in Admin Portal.`,
+      type: 'system',
+      link: '/admin',
+    }));
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
     }
 
     res.status(201).json({
       success: true,
-      message: 'KYC documents submitted successfully. Admin review typically completes within 24 hours.',
+      message: 'KYC documents submitted successfully. Admin will match details and verify within 2-4 hours.',
       kyc,
     });
   } catch (error) {
@@ -143,9 +234,16 @@ exports.submitKYC = async (req, res, next) => {
 exports.getMyKYC = async (req, res, next) => {
   try {
     const kyc = await KYC.findOne({ user: req.user.id });
+    const profile = await OwnerProfile.findOne({ user: req.user.id });
+    const totalCars = await Car.countDocuments({ owner: req.user.id });
+
     res.json({
       success: true,
-      kyc,
+      kyc: kyc || null,
+      kycStatus: kyc ? kyc.status : 'not_submitted',
+      isVerified: kyc?.status === 'verified',
+      profile,
+      totalCars,
     });
   } catch (error) {
     next(error);

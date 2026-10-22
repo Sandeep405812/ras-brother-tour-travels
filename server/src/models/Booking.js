@@ -635,8 +635,6 @@ const bookingSchema = new mongoose.Schema(
 // INDEXES (Optimized for Sub-millisecond Execution & Low Storage Footprint)
 // ============================================================
 
-bookingSchema.index({ bookingId: 1 }, { unique: true, sparse: true });
-
 bookingSchema.index({
   car: 1,
   startDate: 1,

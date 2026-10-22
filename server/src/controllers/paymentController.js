@@ -167,6 +167,7 @@ exports.verifyPayment = async (req, res, next) => {
     } else {
       booking.paymentStatus = 'fully_paid';
     }
+    booking.paymentVerificationStatus = 'verified';
     await booking.save();
 
     // Notify Customer

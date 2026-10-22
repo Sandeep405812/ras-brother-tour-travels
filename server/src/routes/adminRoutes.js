@@ -8,6 +8,7 @@ const {
   updateKYCStatus,
   getCompanySettings,
   updateCompanySettings,
+  toggleKycRequired,
   getCoupons,
   createCoupon,
   deleteCoupon,
@@ -30,6 +31,7 @@ router.get('/users', getAllUsers);
 router.put('/users/:id/role', updateUserRole);
 router.get('/kyc', getAllKYC);
 router.put('/kyc/:id', updateKYCStatus);
+router.put('/kyc-toggle', toggleKycRequired);
 router.get('/company-settings', getCompanySettings);
 router.put('/company-settings', updateCompanySettings);
 router.get('/coupons', getCoupons);

@@ -2475,14 +2475,58 @@ exports.driverCompleteRide = async (req, res, next) => {
     }
 
     booking.status = 'completed';
+    booking.paymentStatus = 'fully_paid';
     booking.rideCompletedAt = new Date();
     booking.remainingCollected = {
       status: true,
       method: collectionMethod,
+      amount: booking.pricing?.remainingAmount || 0,
       collectedAt: new Date(),
     };
 
     await booking.save();
+
+    // Automatically restore car availability so it shows back in fleet immediately
+    if (booking.car) {
+      try {
+        const carId = booking.car._id || booking.car;
+        await Car.findByIdAndUpdate(carId, {
+          isAvailable: true,
+          paused: false,
+        });
+
+        const carDoc = await Car.findById(carId);
+        if (carDoc && carDoc.unavailableDates?.length && booking.startDate) {
+          const bookedDay = new Date(booking.startDate).toISOString().split('T')[0];
+          carDoc.unavailableDates = carDoc.unavailableDates.filter(
+            (d) => new Date(d).toISOString().split('T')[0] !== bookedDay
+          );
+          await carDoc.save();
+        }
+      } catch (err) {
+        console.warn('Car availability restoration notice:', err?.message || err);
+      }
+    }
+
+    // Credit owner profile earnings & available wallet balance after 10% platform commission
+    const ownerUserId = booking.owner?._id || booking.owner;
+    if (ownerUserId) {
+      try {
+        const netOwnerCredit = Math.round((booking.pricing?.totalAmount || 0) * 0.9);
+        await OwnerProfile.findOneAndUpdate(
+          { user: ownerUserId },
+          {
+            $inc: {
+              totalBookings: 1,
+              totalEarnings: booking.pricing?.totalAmount || 0,
+              'wallet.availableBalance': netOwnerCredit,
+            },
+          }
+        );
+      } catch (err) {
+        console.warn('Owner credit update notice:', err?.message || err);
+      }
+    }
 
     // Customer In-App Notification
     if (booking.customer?._id) {

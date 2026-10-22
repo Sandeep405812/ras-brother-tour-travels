@@ -35,6 +35,32 @@ const carSchema = new mongoose.Schema({
     default: '',
   },
 
+  registrationNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: '',
+  },
+
+  rcDocument: {
+    type: String,
+    default: '',
+  },
+
+  insuranceDocument: {
+    type: String,
+    default: '',
+  },
+
+  insuranceValidTill: {
+    type: Date,
+  },
+
+  isVerifiedByAdmin: {
+    type: Boolean,
+    default: true,
+  },
+
   year: {
     type: Number,
     default: 2024,

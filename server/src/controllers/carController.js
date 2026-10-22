@@ -3,6 +3,16 @@ const OwnerProfile = require('../models/OwnerProfile');
 const Booking = require('../models/Booking');
 
 // ============================================================
+// Helper: Extract String URL safely from string or upload result object
+// ============================================================
+const extractUrl = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'object' && val.url) return String(val.url).trim();
+  return String(val).trim();
+};
+
+// ============================================================
 // Helper: Haversine distance in KM
 // ============================================================
 const computeDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -415,6 +425,52 @@ exports.createCar = async (
       });
 
     // ========================================================
+    // FRAUD PREVENTION: KYC VERIFICATION REQUIREMENT FOR OWNERS
+    // (Controlled by Admin ON/OFF Toggle)
+    // ========================================================
+    const CompanySettings = require('../models/CompanySettings');
+    const settings = await CompanySettings.findOne().lean();
+    const isKycEnforced = settings ? settings.kycRequired !== false : true;
+
+    if (isKycEnforced) {
+      const KYC = require('../models/KYC');
+      const kyc = await KYC.findOne({ user: req.user.id });
+      const isVerified =
+        req.user.role === 'admin' ||
+        (ownerProfile && ownerProfile.kycStatus === 'verified') ||
+        (kyc && kyc.status === 'verified');
+
+      if (!isVerified) {
+        return res.status(403).json({
+          success: false,
+          requireKyc: true,
+          message:
+            'Fraud Prevention: You must complete and get your Car Owner KYC verified by Admin before listing vehicles on RAS Brother Tour & Travels.',
+        });
+      }
+    }
+
+    // ========================================================
+    // NUMBER PLATE / REGISTRATION VALIDATION (Anti-Duplicate Check)
+    // ========================================================
+    const registrationNumber = String(
+      req.body.registrationNumber || req.body.licensePlate || ''
+    ).trim().toUpperCase();
+
+    if (registrationNumber) {
+      const duplicateCar = await Car.findOne({
+        registrationNumber,
+        active: true,
+      });
+      if (duplicateCar) {
+        return res.status(400).json({
+          success: false,
+          message: `A vehicle with plate number "${registrationNumber}" is already registered. Please check vehicle registration details.`,
+        });
+      }
+    }
+
+    // ========================================================
     // PER KM RATE
     // ========================================================
     const rawPerKm =
@@ -466,6 +522,16 @@ exports.createCar = async (
           ? ownerProfile._id
           : undefined,
 
+      registrationNumber,
+
+      rcDocument:
+        extractUrl(req.body.rcDocument),
+
+      insuranceDocument:
+        extractUrl(req.body.insuranceDocument),
+
+      isVerifiedByAdmin: true,
+
       brand:
         req.body.brand ||
         'Standard',
@@ -510,20 +576,20 @@ exports.createCar = async (
 
       images: {
         main:
-          req.body.mainImage ||
-          req.body.images?.main ||
+          extractUrl(req.body.mainImage) ||
+          extractUrl(req.body.images?.main) ||
           '/brand/ras-logo-primary.svg',
 
         interior:
-          req.body.interiorImage ||
-          req.body.images?.interior ||
+          extractUrl(req.body.interiorImage) ||
+          extractUrl(req.body.images?.interior) ||
           '',
 
         gallery:
           Array.isArray(
             req.body.gallery
           )
-            ? req.body.gallery
+            ? req.body.gallery.map(extractUrl)
             : [],
       },
 
@@ -750,6 +816,9 @@ exports.updateCar = async (
       'isAvailable',
       'weddingSpecial',
       'active',
+      'registrationNumber',
+      'rcDocument',
+      'insuranceDocument',
     ];
 
     scalarFields.forEach(
@@ -758,8 +827,11 @@ exports.updateCar = async (
           updates[field] !==
           undefined
         ) {
-          updateDoc[field] =
-            updates[field];
+          if (field === 'rcDocument' || field === 'insuranceDocument') {
+            updateDoc[field] = extractUrl(updates[field]);
+          } else {
+            updateDoc[field] = updates[field];
+          }
         }
       }
     );
@@ -1045,7 +1117,7 @@ exports.updateCar = async (
       updateDoc[
         'images.main'
       ] =
-        updates.mainImage;
+        extractUrl(updates.mainImage);
     }
 
     if (
@@ -1055,7 +1127,7 @@ exports.updateCar = async (
       updateDoc[
         'images.interior'
       ] =
-        updates.interiorImage;
+        extractUrl(updates.interiorImage);
     }
 
     if (
@@ -1067,7 +1139,7 @@ exports.updateCar = async (
         updateDoc[
           'images.main'
         ] =
-          updates.images.main;
+          extractUrl(updates.images.main);
       }
 
       if (

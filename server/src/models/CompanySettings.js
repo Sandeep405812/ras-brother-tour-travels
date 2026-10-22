@@ -65,6 +65,10 @@ const companySettingsSchema = new mongoose.Schema({
     type: String,
     default: '9918272164@okaxis',
   },
+  kycRequired: {
+    type: Boolean,
+    default: true,
+  },
   updatedAt: {
     type: Date,
     default: Date.now,

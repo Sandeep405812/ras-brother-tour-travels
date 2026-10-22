@@ -17,6 +17,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const ownerRoutes = require('./routes/ownerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 
 // Google Routes API
 const routeRoutes = require('./routes/routeRoutes');
@@ -119,6 +120,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/owners', ownerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/support', supportRoutes);
 
 // Google Routes API
 app.use('/api/routes', routeRoutes);
